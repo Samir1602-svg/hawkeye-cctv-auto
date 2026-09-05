@@ -1685,6 +1685,7 @@ LANDING_PAGE = f"""
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="dxLZN7B5x3D7twKxx9_KLOub88QL3GViL4C6msTCu0M" />
     <title>Hawkeyi Security &amp; Automation | Complete CCTV Solutions Delhi NCR</title>
     {{{{ styles | safe }}}}
 </head>
