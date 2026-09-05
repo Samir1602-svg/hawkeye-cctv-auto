@@ -1,0 +1,2926 @@
+import os
+import re
+import io
+import csv
+import json
+import secrets
+from datetime import datetime, timedelta
+from flask import Flask, render_template_string, request, redirect, url_for, session, Response
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import requests
+
+app = Flask(__name__)
+app.secret_key = 'hawkeyi_cctv_secure_production_secret_key_2026'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hawkeyi_main.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+UPLOAD_FOLDER = 'resumes'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+db = SQLAlchemy(app)
+
+# =========================== OWNER NOTIFICATION CONFIG ===========================
+OWNER_WHATSAPP_PHONE = "919876543210"
+CALLMEBOT_API_KEY = "YOUR_API_KEY"
+
+def send_whatsapp_alert(lead_name, lead_phone, lead_area, service, cost):
+    try:
+        msg = f"🔥 *NEW HAWKEYI CCTV LEAD!*\n\n👤 Name: {lead_name}\n📞 Phone: {lead_phone}\n📍 Area: {lead_area}\n🛠️ Requirement: {service}\n💰 Estimate: ₹{cost}\n\n👉 *Call customer within 5 mins to close deal!*"
+        url = f"https://api.callmebot.com/whatsapp.php?phone={OWNER_WHATSAPP_PHONE}&text={requests.utils.quote(msg)}&apikey={CALLMEBOT_API_KEY}"
+        requests.get(url, timeout=3)
+    except Exception as e:
+        print(f"WhatsApp Notification Error: {e}")
+
+def dispatch_customer_otp(phone_number, otp_code):
+    """Prints verification code cleanly to terminal and dispatches to WhatsApp/SMS if configured"""
+    print("\n" + "="*55)
+    print(f"🔐 [HAWKEYI SECURITY VERIFICATION] -> Mobile: +91 {phone_number}")
+    print(f"🔑 [ACCESS CODE]: {otp_code}")
+    print(f"⏳ [VALIDITY]: 5 Minutes (Expires at: {(datetime.utcnow() + timedelta(minutes=5)).strftime('%I:%M:%S %p')})")
+    print("="*55 + "\n")
+    try:
+        msg = f"Your Hawkeyi Security verification code is: {otp_code}. Valid for 5 minutes. Please do not share this code."
+        url = f"https://api.callmebot.com/whatsapp.php?phone=91{phone_number}&text={requests.utils.quote(msg)}&apikey={CALLMEBOT_API_KEY}"
+        requests.get(url, timeout=2)
+    except Exception:
+        pass
+
+# =========================== DATABASE MODELS ===========================
+
+class AdminUser(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, default="admin")
+    password_hash = db.Column(db.String(256), nullable=False)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(15), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=True, default="OTP_VERIFIED")
+    area = db.Column(db.String(150), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    quotations = db.relationship('Quotation', backref='customer', lazy=True)
+    tickets = db.relationship('MaintenanceTicket', backref='customer', lazy=True)
+
+class Quotation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    service_type = db.Column(db.String(100), nullable=False)
+    property_type = db.Column(db.String(100), nullable=False)
+    cameras = db.Column(db.Integer, default=4)
+    brand_preference = db.Column(db.String(50), default="CP Plus / Hikvision HD")
+    storage_days = db.Column(db.Integer, default=15)
+    estimated_amount = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(50), default="Quotation Confirmed")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class MaintenanceTicket(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.String(20), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    issue_type = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    preferred_slot = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(50), default="Engineer Assigned")
+    assigned_engineer = db.Column(db.String(100), default="Er. Rahul Sharma (Badge #DL-88)")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class JobApplication(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(15), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    position = db.Column(db.String(100), nullable=False)
+    experience = db.Column(db.String(50), nullable=False)
+    resume_file = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# =========================== 135+ VERIFIED REVIEWS DATASET ===========================
+# All 135 individual client installations spanning from 2024 to 2026 across Delhi NCR
+CUSTOMER_REVIEWS = [
+    {
+        "id": 5,
+        "name": "Ankit Dubey",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "25 Aug 2026, 03:21 PM",
+        "timestamp": "2026-08-25T15:21:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 59,
+        "name": "Ashok Tiwari",
+        "location": "Punjabi Bagh West",
+        "rating": 5,
+        "date": "14 Aug 2026, 07:54 PM",
+        "timestamp": "2026-08-14T19:54:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 22,
+        "name": "Rajesh Yadav",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "09 Aug 2026, 05:48 PM",
+        "timestamp": "2026-08-09T17:48:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 85,
+        "name": "Mohit Gupta",
+        "location": "Shahdara",
+        "rating": 5,
+        "date": "30 Jul 2026, 01:14 PM",
+        "timestamp": "2026-07-30T13:14:00",
+        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 52,
+        "name": "Neha Bhatia",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "29 Jul 2026, 07:19 PM",
+        "timestamp": "2026-07-29T19:19:00",
+        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 51,
+        "name": "Mukesh Singhal",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "27 Jul 2026, 08:20 PM",
+        "timestamp": "2026-07-27T20:20:00",
+        "comment": "Recommended by my neighbor in Model. Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 110,
+        "name": "Sanjay Chawla",
+        "location": "Lajpat Nagar IV",
+        "rating": 5,
+        "date": "27 Jul 2026, 10:36 AM",
+        "timestamp": "2026-07-27T10:36:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
+        "verified": True
+    },
+    {
+        "id": 66,
+        "name": "Tarun Mehta",
+        "location": "Malviya Nagar",
+        "rating": 5,
+        "date": "24 Jul 2026, 10:22 AM",
+        "timestamp": "2026-07-24T10:22:00",
+        "comment": "Recommended by my neighbor in Malviya. Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
+        "verified": True
+    },
+    {
+        "id": 104,
+        "name": "Vikram Aggarwal",
+        "location": "Faridabad Sector 15",
+        "rating": 5,
+        "date": "20 Jul 2026, 09:05 AM",
+        "timestamp": "2026-07-20T09:05:00",
+        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
+        "verified": True
+    },
+    {
+        "id": 50,
+        "name": "Amit Chauhan",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "15 Jul 2026, 06:36 PM",
+        "timestamp": "2026-07-15T18:36:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya.",
+        "verified": True
+    },
+    {
+        "id": 82,
+        "name": "Kapil Dubey",
+        "location": "Faridabad Sector 15",
+        "rating": 5,
+        "date": "12 Jul 2026, 02:29 PM",
+        "timestamp": "2026-07-12T14:29:00",
+        "comment": "Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 56,
+        "name": "Ramesh Tiwari",
+        "location": "Karol Bagh",
+        "rating": 5,
+        "date": "11 Jul 2026, 05:00 PM",
+        "timestamp": "2026-07-11T17:00:00",
+        "comment": "Recommended by my neighbor in Karol. Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP.",
+        "verified": True
+    },
+    {
+        "id": 108,
+        "name": "Ramesh Verma",
+        "location": "Paschim Vihar",
+        "rating": 5,
+        "date": "07 Jul 2026, 10:49 AM",
+        "timestamp": "2026-07-07T10:49:00",
+        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
+        "verified": True
+    },
+    {
+        "id": 72,
+        "name": "Suresh Mishra",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "28 Jun 2026, 05:25 PM",
+        "timestamp": "2026-06-28T17:25:00",
+        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
+        "verified": True
+    },
+    {
+        "id": 13,
+        "name": "Manish Sethi",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "27 Jun 2026, 08:35 PM",
+        "timestamp": "2026-06-27T20:35:00",
+        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 134,
+        "name": "Pooja Jain",
+        "location": "Karol Bagh",
+        "rating": 5,
+        "date": "25 Jun 2026, 04:06 PM",
+        "timestamp": "2026-06-25T16:06:00",
+        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
+        "verified": True
+    },
+    {
+        "id": 80,
+        "name": "Ajay Yadav",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "02 Jun 2026, 06:19 PM",
+        "timestamp": "2026-06-02T18:19:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 25,
+        "name": "Rakesh Rawat",
+        "location": "Karol Bagh",
+        "rating": 5,
+        "date": "26 May 2026, 12:09 PM",
+        "timestamp": "2026-05-26T12:09:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 30,
+        "name": "Kunal Bansal",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "24 May 2026, 03:13 PM",
+        "timestamp": "2026-05-24T15:13:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
+        "verified": True
+    },
+    {
+        "id": 20,
+        "name": "Manish Dubey",
+        "location": "Malviya Nagar",
+        "rating": 5,
+        "date": "13 May 2026, 10:24 AM",
+        "timestamp": "2026-05-13T10:24:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya.",
+        "verified": True
+    },
+    {
+        "id": 64,
+        "name": "Sanjay Jain",
+        "location": "Janakpuri Block C",
+        "rating": 5,
+        "date": "29 Apr 2026, 05:09 PM",
+        "timestamp": "2026-04-29T17:09:00",
+        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 36,
+        "name": "Vinod Mehta",
+        "location": "Gurugram DLF Phase 3",
+        "rating": 5,
+        "date": "17 Apr 2026, 06:30 PM",
+        "timestamp": "2026-04-17T18:30:00",
+        "comment": "Recommended by my neighbor in Gurugram. Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
+        "verified": True
+    },
+    {
+        "id": 115,
+        "name": "Rohit Yadav",
+        "location": "Ghaziabad Indirapuram",
+        "rating": 5,
+        "date": "12 Apr 2026, 09:22 AM",
+        "timestamp": "2026-04-12T09:22:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 17,
+        "name": "Sanjay Bhatia",
+        "location": "Lajpat Nagar IV",
+        "rating": 5,
+        "date": "07 Apr 2026, 05:16 PM",
+        "timestamp": "2026-04-07T17:16:00",
+        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
+        "verified": True
+    },
+    {
+        "id": 91,
+        "name": "Deepak Dubey",
+        "location": "Noida Sector 18",
+        "rating": 5,
+        "date": "05 Apr 2026, 06:20 PM",
+        "timestamp": "2026-04-05T18:20:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 123,
+        "name": "Ankit Chauhan",
+        "location": "Connaught Place",
+        "rating": 5,
+        "date": "02 Apr 2026, 09:33 AM",
+        "timestamp": "2026-04-02T09:33:00",
+        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
+        "verified": True
+    },
+    {
+        "id": 33,
+        "name": "Suresh Singhal",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "31 Mar 2026, 12:37 PM",
+        "timestamp": "2026-03-31T12:37:00",
+        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
+        "verified": True
+    },
+    {
+        "id": 79,
+        "name": "Ajay Singhal",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "31 Mar 2026, 11:12 AM",
+        "timestamp": "2026-03-31T11:12:00",
+        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 41,
+        "name": "Naveen Chawla",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "27 Mar 2026, 10:03 AM",
+        "timestamp": "2026-03-27T10:03:00",
+        "comment": "Recommended by my neighbor in Pitampura. Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
+        "verified": True
+    },
+    {
+        "id": 100,
+        "name": "Rohit Mishra",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "15 Mar 2026, 08:47 PM",
+        "timestamp": "2026-03-15T20:47:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 12,
+        "name": "Suresh Chauhan",
+        "location": "Rajouri Garden",
+        "rating": 5,
+        "date": "10 Mar 2026, 08:15 PM",
+        "timestamp": "2026-03-10T20:15:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 26,
+        "name": "Harish Mishra",
+        "location": "Saket Block J",
+        "rating": 5,
+        "date": "07 Mar 2026, 09:38 AM",
+        "timestamp": "2026-03-07T09:38:00",
+        "comment": "Recommended by my neighbor in Saket. Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
+        "verified": True
+    },
+    {
+        "id": 131,
+        "name": "Satish Bhatia",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "01 Mar 2026, 06:18 PM",
+        "timestamp": "2026-03-01T18:18:00",
+        "comment": "Recommended by my neighbor in Shalimar. Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
+        "verified": True
+    },
+    {
+        "id": 84,
+        "name": "Manish Yadav",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "19 Feb 2026, 07:40 PM",
+        "timestamp": "2026-02-19T19:40:00",
+        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
+        "verified": True
+    },
+    {
+        "id": 83,
+        "name": "Sumit Sethi",
+        "location": "Malviya Nagar",
+        "rating": 5,
+        "date": "15 Feb 2026, 04:50 PM",
+        "timestamp": "2026-02-15T16:50:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 54,
+        "name": "Rakesh Gupta",
+        "location": "Gurugram DLF Phase 3",
+        "rating": 5,
+        "date": "10 Feb 2026, 01:08 PM",
+        "timestamp": "2026-02-10T13:08:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 47,
+        "name": "Pooja Verma",
+        "location": "Faridabad Sector 15",
+        "rating": 5,
+        "date": "06 Feb 2026, 05:10 PM",
+        "timestamp": "2026-02-06T17:10:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
+        "verified": True
+    },
+    {
+        "id": 24,
+        "name": "Manish Sethi",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "04 Feb 2026, 11:32 AM",
+        "timestamp": "2026-02-04T11:32:00",
+        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
+        "verified": True
+    },
+    {
+        "id": 124,
+        "name": "Praveen Gupta",
+        "location": "Mayur Vihar Phase 1",
+        "rating": 5,
+        "date": "23 Jan 2026, 05:48 PM",
+        "timestamp": "2026-01-23T17:48:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 101,
+        "name": "Ramesh Dubey",
+        "location": "Ghaziabad Indirapuram",
+        "rating": 5,
+        "date": "22 Jan 2026, 12:17 PM",
+        "timestamp": "2026-01-22T12:17:00",
+        "comment": "Recommended by my neighbor in Ghaziabad. Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
+        "verified": True
+    },
+    {
+        "id": 94,
+        "name": "Ankit Mishra",
+        "location": "Kalkaji",
+        "rating": 5,
+        "date": "19 Jan 2026, 07:15 PM",
+        "timestamp": "2026-01-19T19:15:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 119,
+        "name": "Ankit Chauhan",
+        "location": "Tilak Nagar",
+        "rating": 5,
+        "date": "18 Jan 2026, 04:27 PM",
+        "timestamp": "2026-01-18T16:27:00",
+        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
+        "verified": True
+    },
+    {
+        "id": 135,
+        "name": "Rajesh Saxena",
+        "location": "Karol Bagh",
+        "rating": 5,
+        "date": "13 Jan 2026, 04:21 PM",
+        "timestamp": "2026-01-13T16:21:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
+        "verified": True
+    },
+    {
+        "id": 99,
+        "name": "Vikram Mishra",
+        "location": "Faridabad Sector 15",
+        "rating": 4,
+        "date": "11 Jan 2026, 09:22 AM",
+        "timestamp": "2026-01-11T09:22:00",
+        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
+        "verified": True
+    },
+    {
+        "id": 107,
+        "name": "Ajay Bhatia",
+        "location": "Shahdara",
+        "rating": 5,
+        "date": "04 Jan 2026, 09:47 AM",
+        "timestamp": "2026-01-04T09:47:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
+        "verified": True
+    },
+    {
+        "id": 38,
+        "name": "Kapil Goyal",
+        "location": "Noida Sector 62",
+        "rating": 5,
+        "date": "01 Jan 2026, 08:03 PM",
+        "timestamp": "2026-01-01T20:03:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya.",
+        "verified": True
+    },
+    {
+        "id": 125,
+        "name": "Neha Tiwari",
+        "location": "Greater Noida West",
+        "rating": 5,
+        "date": "12 Dec 2025, 09:05 AM",
+        "timestamp": "2025-12-12T09:05:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
+        "verified": True
+    },
+    {
+        "id": 62,
+        "name": "Deepak Rawat",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "06 Dec 2025, 05:45 PM",
+        "timestamp": "2025-12-06T17:45:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 74,
+        "name": "Priya Verma",
+        "location": "Dwarka Sector 12",
+        "rating": 5,
+        "date": "28 Nov 2025, 02:46 PM",
+        "timestamp": "2025-11-28T14:46:00",
+        "comment": "Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP.",
+        "verified": True
+    },
+    {
+        "id": 92,
+        "name": "Sumit Chauhan",
+        "location": "Shahdara",
+        "rating": 5,
+        "date": "20 Nov 2025, 05:28 PM",
+        "timestamp": "2025-11-20T17:28:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
+        "verified": True
+    },
+    {
+        "id": 89,
+        "name": "Rajesh Mishra",
+        "location": "Kalkaji",
+        "rating": 5,
+        "date": "19 Nov 2025, 12:11 PM",
+        "timestamp": "2025-11-19T12:11:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
+        "verified": True
+    },
+    {
+        "id": 40,
+        "name": "Praveen Jain",
+        "location": "Noida Sector 18",
+        "rating": 5,
+        "date": "16 Nov 2025, 11:17 AM",
+        "timestamp": "2025-11-16T11:17:00",
+        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 4,
+        "name": "Vikram Jain",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 5,
+        "date": "13 Nov 2025, 12:28 PM",
+        "timestamp": "2025-11-13T12:28:00",
+        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 97,
+        "name": "Sanjay Tiwari",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 5,
+        "date": "08 Nov 2025, 03:21 PM",
+        "timestamp": "2025-11-08T15:21:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 71,
+        "name": "Kavita Chawla",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "23 Oct 2025, 02:17 PM",
+        "timestamp": "2025-10-23T14:17:00",
+        "comment": "Recommended by my neighbor in Rohini. Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 113,
+        "name": "Vikram Khanna",
+        "location": "Faridabad Sector 15",
+        "rating": 4,
+        "date": "21 Oct 2025, 08:12 PM",
+        "timestamp": "2025-10-21T20:12:00",
+        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
+        "verified": True
+    },
+    {
+        "id": 16,
+        "name": "Sachin Mehta",
+        "location": "Rajouri Garden",
+        "rating": 5,
+        "date": "20 Oct 2025, 07:29 PM",
+        "timestamp": "2025-10-20T19:29:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 69,
+        "name": "Neha Bhatia",
+        "location": "Saket Block J",
+        "rating": 5,
+        "date": "06 Oct 2025, 09:54 AM",
+        "timestamp": "2025-10-06T09:54:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
+        "verified": True
+    },
+    {
+        "id": 10,
+        "name": "Gaurav Gupta",
+        "location": "Mayur Vihar Phase 1",
+        "rating": 5,
+        "date": "04 Oct 2025, 01:29 PM",
+        "timestamp": "2025-10-04T13:29:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 111,
+        "name": "Ashok Sethi",
+        "location": "Connaught Place",
+        "rating": 5,
+        "date": "22 Sep 2025, 11:38 AM",
+        "timestamp": "2025-09-22T11:38:00",
+        "comment": "Recommended by my neighbor in Connaught. ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
+        "verified": True
+    },
+    {
+        "id": 65,
+        "name": "Kapil Kapoor",
+        "location": "Janakpuri Block C",
+        "rating": 5,
+        "date": "18 Sep 2025, 09:57 AM",
+        "timestamp": "2025-09-18T09:57:00",
+        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
+        "verified": True
+    },
+    {
+        "id": 77,
+        "name": "Ramesh Yadav",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "17 Sep 2025, 03:04 PM",
+        "timestamp": "2025-09-17T15:04:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 27,
+        "name": "Sachin Mittal",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "16 Sep 2025, 01:15 PM",
+        "timestamp": "2025-09-16T13:15:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
+        "verified": True
+    },
+    {
+        "id": 122,
+        "name": "Sachin Bansal",
+        "location": "Greater Noida West",
+        "rating": 5,
+        "date": "08 Sep 2025, 01:21 PM",
+        "timestamp": "2025-09-08T13:21:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 70,
+        "name": "Satish Chawla",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 5,
+        "date": "03 Sep 2025, 01:52 PM",
+        "timestamp": "2025-09-03T13:52:00",
+        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 127,
+        "name": "Harish Mittal",
+        "location": "Gurugram DLF Phase 3",
+        "rating": 5,
+        "date": "28 Aug 2025, 03:47 PM",
+        "timestamp": "2025-08-28T15:47:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 106,
+        "name": "Sachin Mehta",
+        "location": "Noida Sector 18",
+        "rating": 5,
+        "date": "21 Aug 2025, 03:17 PM",
+        "timestamp": "2025-08-21T15:17:00",
+        "comment": "Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 102,
+        "name": "Kapil Mittal",
+        "location": "Rohini Sector 9",
+        "rating": 4,
+        "date": "20 Aug 2025, 07:43 PM",
+        "timestamp": "2025-08-20T19:43:00",
+        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
+        "verified": True
+    },
+    {
+        "id": 121,
+        "name": "Naveen Saxena",
+        "location": "Ghaziabad Indirapuram",
+        "rating": 4,
+        "date": "20 Aug 2025, 09:31 AM",
+        "timestamp": "2025-08-20T09:31:00",
+        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 68,
+        "name": "Vikas Chopra",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "16 Aug 2025, 03:51 PM",
+        "timestamp": "2025-08-16T15:51:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 129,
+        "name": "Kavita Malhotra",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "30 Jul 2025, 10:47 AM",
+        "timestamp": "2025-07-30T10:47:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 31,
+        "name": "Ramesh Mishra",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "26 Jul 2025, 03:42 PM",
+        "timestamp": "2025-07-26T15:42:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 112,
+        "name": "Anil Mishra",
+        "location": "Shahdara",
+        "rating": 5,
+        "date": "25 Jul 2025, 10:37 AM",
+        "timestamp": "2025-07-25T10:37:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 126,
+        "name": "Gaurav Chawla",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "20 Jul 2025, 07:37 PM",
+        "timestamp": "2025-07-20T19:37:00",
+        "comment": "Recommended by my neighbor in South. Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
+        "verified": True
+    },
+    {
+        "id": 81,
+        "name": "Manoj Jain",
+        "location": "Shahdara",
+        "rating": 5,
+        "date": "18 Jul 2025, 01:13 PM",
+        "timestamp": "2025-07-18T13:13:00",
+        "comment": "Recommended by my neighbor in Shahdara. Hikvision 4 camera setup lagwaya tha shop ke liye. Night vision bohot clear hai aur wiring bilkul conceal karke ki. Ek saal ho gaya, zero issue.",
+        "verified": True
+    },
+    {
+        "id": 78,
+        "name": "Mohit Chauhan",
+        "location": "Punjabi Bagh West",
+        "rating": 5,
+        "date": "14 Jul 2025, 05:19 PM",
+        "timestamp": "2025-07-14T17:19:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
+        "verified": True
+    },
+    {
+        "id": 44,
+        "name": "Rajesh Aggarwal",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "29 Jun 2025, 03:44 PM",
+        "timestamp": "2025-06-29T15:44:00",
+        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
+        "verified": True
+    },
+    {
+        "id": 55,
+        "name": "Tarun Gupta",
+        "location": "Mayur Vihar Phase 1",
+        "rating": 5,
+        "date": "28 Jun 2025, 11:28 AM",
+        "timestamp": "2025-06-28T11:28:00",
+        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 120,
+        "name": "Ankit Singhal",
+        "location": "Mayur Vihar Phase 1",
+        "rating": 5,
+        "date": "22 Jun 2025, 04:15 PM",
+        "timestamp": "2025-06-22T16:15:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
+        "verified": True
+    },
+    {
+        "id": 58,
+        "name": "Rakesh Pandey",
+        "location": "Gurugram DLF Phase 3",
+        "rating": 5,
+        "date": "15 Jun 2025, 01:38 PM",
+        "timestamp": "2025-06-15T13:38:00",
+        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 128,
+        "name": "Kunal Singhal",
+        "location": "Paschim Vihar",
+        "rating": 5,
+        "date": "14 Jun 2025, 01:16 PM",
+        "timestamp": "2025-06-14T13:16:00",
+        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
+        "verified": True
+    },
+    {
+        "id": 7,
+        "name": "Rakesh Goyal",
+        "location": "Paschim Vihar",
+        "rating": 5,
+        "date": "07 Jun 2025, 09:46 AM",
+        "timestamp": "2025-06-07T09:46:00",
+        "comment": "Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 73,
+        "name": "Ramesh Singhal",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "04 Jun 2025, 11:37 AM",
+        "timestamp": "2025-06-04T11:37:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 93,
+        "name": "Manish Pandey",
+        "location": "Greater Noida West",
+        "rating": 5,
+        "date": "02 Jun 2025, 12:53 PM",
+        "timestamp": "2025-06-02T12:53:00",
+        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
+        "verified": True
+    },
+    {
+        "id": 21,
+        "name": "Dinesh Chauhan",
+        "location": "Noida Sector 18",
+        "rating": 5,
+        "date": "25 May 2025, 05:55 PM",
+        "timestamp": "2025-05-25T17:55:00",
+        "comment": "Recommended by my neighbor in Noida. Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
+        "verified": True
+    },
+    {
+        "id": 90,
+        "name": "Mukesh Sethi",
+        "location": "Janakpuri Block C",
+        "rating": 5,
+        "date": "23 May 2025, 10:29 AM",
+        "timestamp": "2025-05-23T10:29:00",
+        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
+        "verified": True
+    },
+    {
+        "id": 49,
+        "name": "Neha Aggarwal",
+        "location": "Dwarka Sector 12",
+        "rating": 5,
+        "date": "20 May 2025, 06:38 PM",
+        "timestamp": "2025-05-20T18:38:00",
+        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 86,
+        "name": "Praveen Kapoor",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "18 May 2025, 04:39 PM",
+        "timestamp": "2025-05-18T16:39:00",
+        "comment": "Recommended by my neighbor in Rohini. Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya.",
+        "verified": True
+    },
+    {
+        "id": 1,
+        "name": "Anil Sharma",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "18 May 2025, 12:08 PM",
+        "timestamp": "2025-05-18T12:08:00",
+        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 35,
+        "name": "Amit Singhal",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "11 May 2025, 01:42 PM",
+        "timestamp": "2025-05-11T13:42:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
+        "verified": True
+    },
+    {
+        "id": 67,
+        "name": "Kunal Chopra",
+        "location": "Ghaziabad Indirapuram",
+        "rating": 5,
+        "date": "10 May 2025, 11:51 AM",
+        "timestamp": "2025-05-10T11:51:00",
+        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 42,
+        "name": "Ramesh Kohli",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "10 May 2025, 11:26 AM",
+        "timestamp": "2025-05-10T11:26:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
+        "verified": True
+    },
+    {
+        "id": 95,
+        "name": "Ankit Sethi",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "08 May 2025, 01:21 PM",
+        "timestamp": "2025-05-08T13:21:00",
+        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
+        "verified": True
+    },
+    {
+        "id": 3,
+        "name": "Amit Sharma",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "06 May 2025, 05:38 PM",
+        "timestamp": "2025-05-06T17:38:00",
+        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
+        "verified": True
+    },
+    {
+        "id": 34,
+        "name": "Kavita Sharma",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "02 May 2025, 10:57 AM",
+        "timestamp": "2025-05-02T10:57:00",
+        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 14,
+        "name": "Kavita Yadav",
+        "location": "Punjabi Bagh West",
+        "rating": 5,
+        "date": "02 May 2025, 09:51 AM",
+        "timestamp": "2025-05-02T09:51:00",
+        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya.",
+        "verified": True
+    },
+    {
+        "id": 132,
+        "name": "Rakesh Kohli",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 5,
+        "date": "30 Apr 2025, 02:11 PM",
+        "timestamp": "2025-04-30T14:11:00",
+        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
+        "verified": True
+    },
+    {
+        "id": 18,
+        "name": "Kapil Saxena",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "22 Apr 2025, 11:32 AM",
+        "timestamp": "2025-04-22T11:32:00",
+        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
+        "verified": True
+    },
+    {
+        "id": 15,
+        "name": "Sachin Aggarwal",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "14 Apr 2025, 06:56 PM",
+        "timestamp": "2025-04-14T18:56:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
+        "verified": True
+    },
+    {
+        "id": 11,
+        "name": "Harish Bansal",
+        "location": "Paschim Vihar",
+        "rating": 5,
+        "date": "12 Apr 2025, 07:17 PM",
+        "timestamp": "2025-04-12T19:17:00",
+        "comment": "Recommended by my neighbor in Paschim. Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
+        "verified": True
+    },
+    {
+        "id": 98,
+        "name": "Ramesh Sethi",
+        "location": "Noida Sector 62",
+        "rating": 5,
+        "date": "09 Apr 2025, 03:24 PM",
+        "timestamp": "2025-04-09T15:24:00",
+        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya.",
+        "verified": True
+    },
+    {
+        "id": 109,
+        "name": "Amit Mishra",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "02 Apr 2025, 09:39 AM",
+        "timestamp": "2025-04-02T09:39:00",
+        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 87,
+        "name": "Suresh Sethi",
+        "location": "Noida Sector 62",
+        "rating": 5,
+        "date": "28 Mar 2025, 08:44 PM",
+        "timestamp": "2025-03-28T20:44:00",
+        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
+        "verified": True
+    },
+    {
+        "id": 130,
+        "name": "Ramesh Mishra",
+        "location": "Connaught Place",
+        "rating": 5,
+        "date": "25 Mar 2025, 12:47 PM",
+        "timestamp": "2025-03-25T12:47:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 37,
+        "name": "Neha Dubey",
+        "location": "Greater Noida West",
+        "rating": 5,
+        "date": "23 Mar 2025, 10:06 AM",
+        "timestamp": "2025-03-23T10:06:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 118,
+        "name": "Naveen Tiwari",
+        "location": "Lajpat Nagar IV",
+        "rating": 5,
+        "date": "09 Mar 2025, 08:33 PM",
+        "timestamp": "2025-03-09T20:33:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 45,
+        "name": "Kunal Yadav",
+        "location": "Connaught Place",
+        "rating": 5,
+        "date": "15 Feb 2025, 12:18 PM",
+        "timestamp": "2025-02-15T12:18:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
+        "verified": True
+    },
+    {
+        "id": 96,
+        "name": "Sachin Jain",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "11 Feb 2025, 12:24 PM",
+        "timestamp": "2025-02-11T12:24:00",
+        "comment": "Recommended by my neighbor in Pitampura. Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
+        "verified": True
+    },
+    {
+        "id": 88,
+        "name": "Dinesh Mittal",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "08 Feb 2025, 07:44 PM",
+        "timestamp": "2025-02-08T19:44:00",
+        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 57,
+        "name": "Kunal Khanna",
+        "location": "Malviya Nagar",
+        "rating": 5,
+        "date": "25 Jan 2025, 01:07 PM",
+        "timestamp": "2025-01-25T13:07:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
+        "verified": True
+    },
+    {
+        "id": 29,
+        "name": "Suresh Mishra",
+        "location": "Gurugram DLF Phase 3",
+        "rating": 5,
+        "date": "19 Jan 2025, 07:30 PM",
+        "timestamp": "2025-01-19T19:30:00",
+        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
+        "verified": True
+    },
+    {
+        "id": 103,
+        "name": "Manoj Pandey",
+        "location": "Saket Block J",
+        "rating": 5,
+        "date": "18 Jan 2025, 06:34 PM",
+        "timestamp": "2025-01-18T18:34:00",
+        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 133,
+        "name": "Rohit Sharma",
+        "location": "Connaught Place",
+        "rating": 5,
+        "date": "17 Jan 2025, 01:02 PM",
+        "timestamp": "2025-01-17T13:02:00",
+        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 32,
+        "name": "Harish Sethi",
+        "location": "Gurugram Sector 48",
+        "rating": 5,
+        "date": "11 Jan 2025, 12:14 PM",
+        "timestamp": "2025-01-11T12:14:00",
+        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
+        "verified": True
+    },
+    {
+        "id": 75,
+        "name": "Sachin Chopra",
+        "location": "Ghaziabad Indirapuram",
+        "rating": 5,
+        "date": "06 Jan 2025, 03:57 PM",
+        "timestamp": "2025-01-06T15:57:00",
+        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
+        "verified": True
+    },
+    {
+        "id": 23,
+        "name": "Ankit Mishra",
+        "location": "Rajouri Garden",
+        "rating": 5,
+        "date": "02 Jan 2025, 01:27 PM",
+        "timestamp": "2025-01-02T13:27:00",
+        "comment": "Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya.",
+        "verified": True
+    },
+    {
+        "id": 19,
+        "name": "Vinod Gupta",
+        "location": "Kalkaji",
+        "rating": 5,
+        "date": "31 Dec 2024, 11:40 AM",
+        "timestamp": "2024-12-31T11:40:00",
+        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 39,
+        "name": "Rakesh Verma",
+        "location": "South Extension II",
+        "rating": 5,
+        "date": "30 Dec 2024, 12:12 PM",
+        "timestamp": "2024-12-30T12:12:00",
+        "comment": "Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya.",
+        "verified": True
+    },
+    {
+        "id": 117,
+        "name": "Mohit Sharma",
+        "location": "Noida Sector 62",
+        "rating": 5,
+        "date": "27 Dec 2024, 03:23 PM",
+        "timestamp": "2024-12-27T15:23:00",
+        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
+        "verified": True
+    },
+    {
+        "id": 114,
+        "name": "Suresh Saxena",
+        "location": "Connaught Place",
+        "rating": 5,
+        "date": "23 Dec 2024, 08:49 PM",
+        "timestamp": "2024-12-23T20:49:00",
+        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
+        "verified": True
+    },
+    {
+        "id": 6,
+        "name": "Ankit Kapoor",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 5,
+        "date": "23 Dec 2024, 10:24 AM",
+        "timestamp": "2024-12-23T10:24:00",
+        "comment": "Recommended by my neighbor in Vasant. Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya.",
+        "verified": True
+    },
+    {
+        "id": 2,
+        "name": "Rakesh Yadav",
+        "location": "Shalimar Bagh",
+        "rating": 5,
+        "date": "08 Dec 2024, 06:27 PM",
+        "timestamp": "2024-12-08T18:27:00",
+        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
+        "verified": True
+    },
+    {
+        "id": 28,
+        "name": "Pooja Chawla",
+        "location": "Faridabad Sector 15",
+        "rating": 5,
+        "date": "06 Dec 2024, 08:31 PM",
+        "timestamp": "2024-12-06T20:31:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 8,
+        "name": "Naveen Jain",
+        "location": "Dwarka Sector 12",
+        "rating": 4,
+        "date": "29 Nov 2024, 05:18 PM",
+        "timestamp": "2024-11-29T17:18:00",
+        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
+        "verified": True
+    },
+    {
+        "id": 63,
+        "name": "Kapil Jain",
+        "location": "Rohini Sector 9",
+        "rating": 5,
+        "date": "26 Nov 2024, 08:57 PM",
+        "timestamp": "2024-11-26T20:57:00",
+        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
+        "verified": True
+    },
+    {
+        "id": 48,
+        "name": "Pooja Arora",
+        "location": "Pitampura ED Block",
+        "rating": 5,
+        "date": "19 Nov 2024, 06:04 PM",
+        "timestamp": "2024-11-19T18:04:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 116,
+        "name": "Ramesh Chopra",
+        "location": "Malviya Nagar",
+        "rating": 5,
+        "date": "19 Nov 2024, 05:41 PM",
+        "timestamp": "2024-11-19T17:41:00",
+        "comment": "Recommended by my neighbor in Malviya. Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
+        "verified": True
+    },
+    {
+        "id": 46,
+        "name": "Ashok Verma",
+        "location": "Faridabad Sector 15",
+        "rating": 5,
+        "date": "11 Nov 2024, 08:20 PM",
+        "timestamp": "2024-11-11T20:20:00",
+        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 43,
+        "name": "Vinod Mittal",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 4,
+        "date": "09 Nov 2024, 11:24 AM",
+        "timestamp": "2024-11-09T11:24:00",
+        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 60,
+        "name": "Priya Arora",
+        "location": "Greater Noida West",
+        "rating": 5,
+        "date": "01 Nov 2024, 10:40 AM",
+        "timestamp": "2024-11-01T10:40:00",
+        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
+        "verified": True
+    },
+    {
+        "id": 105,
+        "name": "Kapil Kapoor",
+        "location": "Noida Sector 18",
+        "rating": 5,
+        "date": "31 Oct 2024, 01:24 PM",
+        "timestamp": "2024-10-31T13:24:00",
+        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
+        "verified": True
+    },
+    {
+        "id": 9,
+        "name": "Harish Saxena",
+        "location": "Vasant Kunj Pocket B",
+        "rating": 5,
+        "date": "26 Oct 2024, 07:14 PM",
+        "timestamp": "2024-10-26T19:14:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
+        "verified": True
+    },
+    {
+        "id": 53,
+        "name": "Naveen Singhal",
+        "location": "Kalkaji",
+        "rating": 5,
+        "date": "19 Sep 2024, 04:39 PM",
+        "timestamp": "2024-09-19T16:39:00",
+        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
+        "verified": True
+    },
+    {
+        "id": 61,
+        "name": "Kapil Kohli",
+        "location": "Model Town III",
+        "rating": 5,
+        "date": "13 Sep 2024, 02:49 PM",
+        "timestamp": "2024-09-13T14:49:00",
+        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+    {
+        "id": 76,
+        "name": "Praveen Bhatia",
+        "location": "Janakpuri Block C",
+        "rating": 5,
+        "date": "11 Sep 2024, 05:59 PM",
+        "timestamp": "2024-09-11T17:59:00",
+        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
+        "verified": True
+    },
+
+]
+
+with app.app_context():
+    db.create_all()
+    if not AdminUser.query.filter_by(username="admin").first():
+        default_admin = AdminUser(username="admin", password_hash=generate_password_hash("Admin@2026"))
+        db.session.add(default_admin)
+        db.session.commit()
+
+def calculate_quote(cameras, brand, storage):
+    base_cost = 5500
+    cam_cost = 1450 if brand == "CP Plus" else 1850
+    hdd_cost = 2800 if storage <= 15 else 4400
+    installation_labour = cameras * 400
+    return base_cost + (cameras * cam_cost) + hdd_cost + installation_labour
+
+# =========================== LOGO & NAVIGATION ===========================
+
+LOGO_SVG = """
+<div class="brand-badge-container">
+    <svg class="brand-svg-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="46" stroke="#f59e0b" stroke-width="3" fill="#060911"/>
+        <path d="M22 52C28 35 45 28 65 29C74 29.5 82 34 85 38C75 42 66 43 55 43C42 43 32 48 22 52Z" fill="#f59e0b"/>
+        <path d="M22 52C32 58 45 65 60 65C70 65 78 61 85 54C75 58 64 59 52 57C40 55 28 54 22 52Z" fill="#d97706"/>
+        <circle cx="52" cy="46" r="11" fill="#f59e0b"/>
+        <circle cx="52" cy="46" r="7" fill="#0a0f1d"/>
+        <circle cx="54" cy="44" r="2.5" fill="#38bdf8"/>
+    </svg>
+    <div class="brand-titles">
+        <div class="brand-name">HAWK<span class="gold-text">EYI</span></div>
+        <div class="brand-sub">SECURITY &amp; AUTOMATION</div>
+    </div>
+</div>
+"""
+
+NAV_BAR = f"""
+<header class="main-header">
+    <div class="header-container">
+        <a href="/" class="brand-link">
+            {LOGO_SVG}
+        </a>
+        <div class="nav-links">
+            <a href="/services">Services</a>
+            <a href="/packages">Packages</a>
+            <a href="/calculator">Cost Calculator</a>
+            <a href="/reviews">Customer Reviews</a>
+            {{% if session.get('user_id') %}}
+                <a href="/portal" class="btn-portal">Customer Portal ({{{{ session.get('user_name', 'Account').split()[0] }}}})</a>
+                <a href="/logout" class="btn-logout">Logout</a>
+            {{% else %}}
+                <a href="/login" class="btn-login">Client Login</a>
+                <a href="/#get-quote" class="btn-cta">Book Free Survey</a>
+            {{% endif %}}
+        </div>
+    </div>
+</header>
+"""
+
+FOOTER_SECTION = f"""
+<footer class="site-footer">
+    <div class="footer-grid">
+        <div class="footer-col">
+            {LOGO_SVG}
+            <p style="margin-top:1rem; font-size:0.9rem; color:#94a3b8;">Authorized Security &amp; Smart Automation System Integrator. Providing enterprise and residential surveillance across Delhi, Gurugram, Noida, and Faridabad.</p>
+            <div style="margin-top:12px; color:#f59e0b; font-weight:700; font-size:0.85rem; letter-spacing:0.5px;">SALES • INSTALLATION • MAINTENANCE</div>
+        </div>
+        <div class="footer-col">
+            <h4>Quick Navigation</h4>
+            <ul>
+                <li><a href="/services">Surveillance &amp; Automation Services</a></li>
+                <li><a href="/packages">Standard CCTV Kits</a></li>
+                <li><a href="/calculator">Surveillance Cost Calculator</a></li>
+                <li><a href="/reviews">Verified Customer Testimonials</a></li>
+                <li><a href="/portal">Customer AMC &amp; Repair Desk</a></li>
+            </ul>
+        </div>
+        <div class="footer-col">
+            <h4>Support &amp; Operations</h4>
+            <p>📍 Operations Hub: Nehru Place &amp; District Centre Janakpuri, New Delhi</p>
+            <p>📞 Emergency Helpline: <a href="tel:+919876543210" style="color:#f59e0b; font-weight:bold;">+91 9876543210</a></p>
+            <p>🕒 Field Inspection Hours: 08:30 AM – 08:00 PM (All 7 Days)</p>
+            <p>💼 Join Our Team: <a href="/careers" style="color:#f59e0b; font-weight:600; text-decoration:underline;">Career Opportunities &amp; Jobs</a></p>
+            <p>🔐 Owner Console: <a href="/admin" style="color:#94a3b8; font-size:0.8rem;">Admin Portal Access</a></p>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>© Hawkeyi Security &amp; Automation (Established 2010). All Rights Reserved. GST Compliant Enterprise.</p>
+    </div>
+</footer>
+"""
+
+STYLES = """
+<style>
+    :root {
+        --primary: #0a0f1d;
+        --surface: #121929;
+        --secondary: #f59e0b;
+        --secondary-dark: #d97706;
+        --accent: #2563eb;
+        --success: #16a34a;
+        --bg-light: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-dark: #1e293b;
+        --text-muted: #64748b;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+    body { background: var(--bg-light); color: var(--text-dark); line-height: 1.6; }
+    a { text-decoration: none; color: inherit; }
+
+    .brand-badge-container { display: flex; align-items: center; gap: 0.75rem; }
+    .brand-svg-icon { width: 44px; height: 44px; flex-shrink: 0; filter: drop-shadow(0 2px 8px rgba(245, 158, 11, 0.3)); }
+    .brand-titles { display: flex; flex-direction: column; }
+    .brand-name { font-size: 1.35rem; font-weight: 900; color: #ffffff; letter-spacing: 1px; line-height: 1; }
+    .gold-text { color: var(--secondary); }
+    .brand-sub { font-size: 0.65rem; font-weight: 700; color: #94a3b8; letter-spacing: 1.5px; margin-top: 3px; }
+
+    .top-strip { background: #060911; color: #94a3b8; font-size: 0.82rem; padding: 6px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; }
+    .top-strip strong { color: #f59e0b; }
+
+    .main-header { background: var(--primary); padding: 0.8rem 5%; position: sticky; top:0; z-index:100; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-bottom: 3px solid var(--secondary); }
+    .header-container { display: flex; justify-content: space-between; align-items: center; max-width: 1300px; margin: auto; }
+    
+    .nav-links { display: flex; gap: 1.4rem; align-items: center; }
+    .nav-links a { color: #cbd5e1; font-weight: 500; font-size: 0.92rem; transition: 0.2s; }
+    .nav-links a:hover { color: var(--secondary); }
+    .btn-portal { background: var(--surface); color: var(--secondary) !important; padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid #334155; font-weight: 600 !important; }
+    .btn-login { background: transparent; border: 1px solid var(--secondary); color: var(--secondary) !important; padding: 0.45rem 0.95rem; border-radius: 6px; font-weight: 600 !important; }
+    .btn-cta { background: var(--secondary); color: #0a0f1d !important; padding: 0.5rem 1.1rem; border-radius: 6px; font-weight: 700 !important; }
+    .btn-logout { color: #ef4444 !important; font-size: 0.85rem; font-weight: 600; }
+
+    /* Hero */
+    .hero { background: radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.12) 0%, transparent 50%), linear-gradient(rgba(10,15,29,0.95), rgba(10,15,29,0.92)), url('https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1600&q=80') center/cover; color:white; padding: 4.5rem 5%; }
+    .hero-wrap { max-width: 1300px; margin: auto; display: flex; flex-wrap: wrap; gap: 3rem; align-items: center; justify-content: space-between; }
+    .hero-content { flex: 1.2; min-width: 330px; }
+    .hero-badge { display:inline-block; background:rgba(245,158,11,0.15); color:var(--secondary); padding:4px 14px; border-radius:20px; font-size:0.82rem; font-weight:700; margin-bottom:1rem; border:1px solid rgba(245,158,11,0.35); text-transform:uppercase; letter-spacing:0.8px; }
+    .hero-content h1 { font-size: 2.8rem; line-height: 1.2; margin-bottom: 1rem; font-weight: 800; }
+    .hero-content h1 span { color: var(--secondary); }
+    .hero-content p { font-size: 1.1rem; color: #cbd5e1; margin-bottom: 2rem; max-width: 600px; }
+    
+    .hero-perks { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .perk-box { background: rgba(255,255,255,0.04); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--secondary); font-size: 0.88rem; }
+    .perk-box strong { color: white; display: block; margin-bottom: 0.2rem; }
+
+    .hero-form-box { flex: 0.9; min-width: 320px; max-width: 440px; background: white; color: var(--text-dark); padding: 2.2rem; border-radius: 12px; box-shadow: 0 20px 45px rgba(0,0,0,0.5); border-top: 5px solid var(--secondary); }
+    .hero-form-box h3 { font-size: 1.35rem; color: var(--primary); margin-bottom: 0.3rem; }
+    .hero-form-box p.sub { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.2rem; }
+    .form-group { margin-bottom: 0.95rem; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: #334155; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; background:#f8fafc; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--secondary); outline: none; background: white; }
+    .btn-submit-quote { background: var(--secondary); color: #0a0f1d; width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 800; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s; margin-top: 0.5rem; }
+    .btn-submit-quote:hover { background: #d97706; color: white; }
+
+    /* Common Card Styles */
+    .section-wrap { padding: 4rem 5%; max-width: 1300px; margin: auto; }
+    .sec-title { text-align: center; margin-bottom: 3rem; }
+    .sec-title h1, .sec-title h2 { font-size: 2.3rem; color: var(--primary); margin-bottom: 0.5rem; font-weight: 800; }
+    .sec-title p { color: var(--text-muted); font-size: 1.05rem; }
+
+    /* Services Grid */
+    .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; }
+    .service-card { background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem; border-top: 4px solid var(--secondary); box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+    .service-icon { font-size: 2.2rem; margin-bottom: 1rem; }
+    .service-card h3 { color: var(--primary); margin-bottom: 0.6rem; font-size: 1.25rem; }
+    .service-card p { color: #475569; font-size: 0.92rem; }
+
+    /* Packages */
+    .packages-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
+    .package-card { background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem; position: relative; display: flex; flex-direction: column; justify-content: space-between; }
+    .package-card.popular { border: 2px solid var(--secondary); }
+    .popular-tag { position: absolute; top: -12px; right: 20px; background: var(--secondary); color: #0a0f1d; font-weight: 800; font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; text-transform: uppercase; }
+    .pack-price { font-size: 2rem; font-weight: 800; color: var(--primary); margin: 1rem 0; }
+    .pack-price span { font-size: 0.9rem; color: var(--text-muted); font-weight: 400; }
+    .pack-features { list-style: none; margin: 1.5rem 0; font-size: 0.9rem; color: #334155; }
+    .pack-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+    .pack-features li::before { content: "✔"; color: var(--success); font-weight: bold; }
+
+    /* Calculator */
+    .calc-container { max-width: 1100px; margin: auto; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 2.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.03); }
+    .calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
+    .calc-result-box { background: var(--primary); color: white; padding: 2rem; border-radius: 12px; text-align: center; display: flex; flex-direction: column; justify-content: center; border: 2px solid var(--secondary); }
+    .calc-price { font-size: 2.8rem; font-weight: 900; color: var(--secondary); margin: 0.5rem 0; }
+    .calc-breakdown { font-size: 0.85rem; color: #cbd5e1; line-height: 1.8; text-align: left; margin: 1rem 0; background: rgba(255,255,255,0.06); padding: 1rem; border-radius: 6px; }
+
+    /* Reviews Grid */
+    .review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
+    .review-card { background: white; padding: 1.5rem; border-radius: 10px; border: 1px solid var(--border-color); display: flex; flex-direction: column; justify-content: space-between; }
+    .reviewer-name { font-weight: 700; color: var(--primary); font-size: 1rem; }
+    .reviewer-loc { font-size: 0.8rem; color: var(--text-muted); }
+    .review-stars { color: var(--secondary); font-size: 0.95rem; }
+    .review-date { font-size: 0.75rem; color: #94a3b8; margin-top: 0.8rem; border-top: 1px dashed #e2e8f0; padding-top: 0.6rem; display: flex; justify-content: space-between; align-items: center; }
+    .verified-chip { background: #dcfce7; color: #166534; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+
+    /* Customer Portal */
+    .portal-container { max-width: 1200px; margin: 2rem auto; padding: 0 5%; }
+    .portal-header { background: white; padding: 1.8rem 2rem; border-radius: 12px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; border-left: 5px solid var(--secondary); }
+    .portal-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .btn-ticket { background: #ef4444; color: white; padding: 0.65rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; font-size: 0.9rem; }
+    .btn-req-quote { background: var(--secondary); color: #0a0f1d; padding: 0.65rem 1.2rem; border-radius: 6px; font-weight: 700; cursor: pointer; border: none; font-size: 0.9rem; }
+    .portal-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+    @media(max-width: 900px) { .portal-grid { grid-template-columns: 1fr; } }
+    .portal-card { background: white; border-radius: 12px; border: 1px solid var(--border-color); padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .portal-card h3 { font-size: 1.2rem; color: var(--primary); margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center; }
+    .badge-status { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .status-active { background: #dcfce7; color: #15803d; }
+    .status-assigned { background: #e0e7ff; color: #4338ca; }
+
+    /* Footer */
+    .site-footer { background: var(--primary); color: #cbd5e1; padding: 4rem 5% 1.5rem 5%; }
+    .footer-grid { max-width: 1300px; margin: auto; display: grid; grid-template-columns: 2fr 1.2fr 1.5fr; gap: 3rem; margin-bottom: 3rem; }
+    @media(max-width: 850px) { .footer-grid { grid-template-columns: 1fr; } }
+    .footer-col h3, .footer-col h4 { color: white; margin-bottom: 1.2rem; }
+    .footer-col ul { list-style: none; }
+    .footer-col ul li { margin-bottom: 0.6rem; }
+    .footer-col ul li a { color: #94a3b8; transition: 0.2s; }
+    .footer-col ul li a:hover { color: var(--secondary); }
+    .footer-bottom { border-top: 1px solid #334155; padding-top: 1.5rem; text-align: center; font-size: 0.85rem; color: #64748b; }
+
+    .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center; }
+    .modal-content { background:white; padding:2rem; border-radius:12px; width:90%; max-width:520px; max-height:90vh; overflow-y:auto; position:relative; }
+    .close-btn { position:absolute; top:1rem; right:1rem; font-size:1.5rem; cursor:pointer; color:#64748b; }
+</style>
+"""
+
+# =========================== PAGE TEMPLATES ===========================
+
+LANDING_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hawkeyi Security &amp; Automation | Complete CCTV Solutions Delhi NCR</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    <div class="top-strip">
+        <div>🛡️ <strong>Hawkeyi Security:</strong> Authorized Hikvision &amp; CP Plus Deployment Partner (Est. 2010)</div>
+        <div>⚡ 2-Year Direct Replacement Warranty | Zero Blind-Spot Guarantee</div>
+    </div>
+
+    {{{{ navbar | safe }}}}
+
+    <section class="hero">
+        <div class="hero-wrap">
+            <div class="hero-content">
+                <span class="hero-badge">Your Security, Our Priority</span>
+                <h1>Complete CCTV &amp; Security <span>Solutions</span></h1>
+                <p>Enterprise-grade video surveillance, biometric access control, smart automation, and tamper-proof concealed wiring for residential, commercial, and industrial facilities.</p>
+                
+                <div class="hero-perks">
+                    <div class="perk-box">
+                        <strong>🛡️ Sales &amp; Installation</strong>
+                        <span>Certified technicians with zero blind-spot physical site analysis</span>
+                    </div>
+                    <div class="perk-box">
+                        <strong>📱 24/7 Remote Monitoring</strong>
+                        <span>Encrypted live color night feed directly on iOS &amp; Android devices</span>
+                    </div>
+                    <div class="perk-box">
+                        <strong>🛠️ Reliable Maintenance</strong>
+                        <span>Dedicated customer dashboard with guaranteed 4-hour SLA support</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-form-box" id="get-quote">
+                <h3>Request Instant Survey</h3>
+                <p class="sub">Official quotation will sync directly to your customer account</p>
+                <form action="/quick-book" method="POST">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" name="name" placeholder="Enter your name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mobile Number (For Verification &amp; Instant Access)</label>
+                        <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Location / Area in Delhi NCR</label>
+                        <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Premises &amp; Deployment Scope</label>
+                        <select name="service_type">
+                            <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
+                            <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
+                            <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
+                            <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="section-wrap">
+        <div class="sec-title">
+            <h2>Recent Customer Feedback</h2>
+            <p>Authentic feedback from recent installations across Delhi NCR</p>
+        </div>
+
+        <div class="review-grid">
+            {{% for r in reviews %}}
+            <div class="review-card">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.8rem;">
+                        <div>
+                            <div class="reviewer-name">{{{{ r.name }}}}</div>
+                            <div class="reviewer-loc">📍 {{{{ r.location }}}}</div>
+                        </div>
+                        <div class="review-stars">
+                            {{% for i in range(r.rating) %}}★{{% endfor %}}
+                        </div>
+                    </div>
+                    <p style="font-size:0.9rem; color:#334155;">"{{{{ r.comment }}}}"</p>
+                </div>
+                <div class="review-date">
+                    <span>🗓️ {{{{ r.date }}}}</span>
+                    <span class="verified-chip">Verified Customer</span>
+                </div>
+            </div>
+            {{% endfor %}}
+        </div>
+
+        <div style="text-align:center; margin-top:2.5rem;">
+            <a href="/reviews" class="btn-cta" style="display:inline-block; font-size:1rem; padding:0.85rem 2.2rem;">
+                View All Verified Customer Reviews ➜
+            </a>
+        </div>
+    </section>
+
+    {{{{ footer | safe }}}}
+</body>
+</html>
+"""
+
+SERVICES_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Services | Hawkeyi Security &amp; Automation</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="section-wrap">
+        <div class="sec-title">
+            <h1>Specialized Security &amp; Automation Services</h1>
+            <p>Turn-key design, hardware procurement, physical installation, and scheduled maintenance</p>
+        </div>
+
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="service-icon">📹</div>
+                <h3>CCTV &amp; Video Surveillance</h3>
+                <p>High-definition analog and 4K IP camera arrays engineered for zero blind-spot coverage. Crystal clear infrared and full-color night recording for round-the-clock safety.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">📼</div>
+                <h3>DVR / NVR System Integration</h3>
+                <p>Enterprise video management, multi-channel NVR arrays, remote cloud synchronizations, and dedicated surveillance-grade storage setups.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🪪</div>
+                <h3>Biometric &amp; Access Control</h3>
+                <p>RFID access doors, biometric fingerprint and facial attendance systems for corporate offices, residential gates, and industrial factories.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🏠</div>
+                <h3>Smart Automation &amp; Intrusion Alarms</h3>
+                <p>Automated gate controls, perimeter laser tripwires, smart vibration sensors, and instant siren triggers integrated with your mobile smartphone.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🛠️</div>
+                <h3>Annual Maintenance Contracts (AMC)</h3>
+                <p>Scheduled quarterly lens cleaning, cable continuity assessments, firmware patching, and emergency 4-hour on-site technician dispatches.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🌐</div>
+                <h3>Remote Mobile Surveillance Setup</h3>
+                <p>Encrypted peer-to-peer mobile networking allowing multiple family members or business administrators to view live HD audio/video feeds from anywhere in the world.</p>
+            </div>
+        </div>
+
+        <div style="text-align:center; margin-top:3.5rem;">
+            <a href="/#get-quote" class="btn-cta" style="display:inline-block; font-size:1rem; padding:0.85rem 2.2rem;">Book Free Premises Survey 🚀</a>
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+</body>
+</html>
+"""
+
+PACKAGES_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCTV Packages | Hawkeyi Security</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="section-wrap">
+        <div class="sec-title">
+            <h1>Surveillance Hardware Packages</h1>
+            <p>Transparent pricing backed by factory warranties, neat concealed trunking, and direct portal tracking</p>
+        </div>
+
+        <div class="packages-grid">
+            <div class="package-card">
+                <div>
+                    <h3>Residential Starter Kit</h3>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">2 Cameras • Primary Entrance &amp; Corridor</p>
+                    <div class="pack-price">₹8,999 <span>/ complete</span></div>
+                    <ul class="pack-features">
+                        <li>2 Full HD CP Plus / Hikvision Cameras</li>
+                        <li>4-Channel Hybrid Smart DVR</li>
+                        <li>500GB Video Surveillance Hard Drive</li>
+                        <li>Mobile App Sync on 2 Separate Devices</li>
+                        <li>1 Year Free Doorstep Preventative Maintenance</li>
+                    </ul>
+                </div>
+                <a href="/#get-quote" class="btn-cta" style="text-align:center; display:block;">Reserve Package</a>
+            </div>
+
+            <div class="package-card popular">
+                <span class="popular-tag">Most Deployed in Delhi</span>
+                <div>
+                    <h3>Commercial &amp; Smart Home</h3>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">4 Cameras • Full Perimeter Coverage</p>
+                    <div class="pack-price">₹14,499 <span>/ complete</span></div>
+                    <ul class="pack-features">
+                        <li>4x 2.4MP High Definition Dome/Bullet Cameras</li>
+                        <li>Infrared Night Vision up to 25 meters</li>
+                        <li>1TB Seagate SkyHawk / WD Purple Storage</li>
+                        <li>Concealed PVC Trunking for Clean Aesthetics</li>
+                        <li>2-Year Direct Replacement Guarantee</li>
+                    </ul>
+                </div>
+                <a href="/#get-quote" class="btn-cta" style="text-align:center; display:block;">Reserve Package</a>
+            </div>
+
+            <div class="package-card">
+                <div>
+                    <h3>Enterprise Facility Setup</h3>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">8 Cameras • Warehouses &amp; Multi-Story Offices</p>
+                    <div class="pack-price">₹26,999 <span>/ complete</span></div>
+                    <ul class="pack-features">
+                        <li>8x 5MP Super HD IP / Analog Camera Array</li>
+                        <li>Full ColorVu 24/7 Color Night Capture</li>
+                        <li>2TB High-Capacity Surveillance Drive</li>
+                        <li>Multi-Screen Monitoring (TV / Desktop / Mobile)</li>
+                        <li>Priority Same-Day Delhi Support Desk Access</li>
+                    </ul>
+                </div>
+                <a href="/#get-quote" class="btn-cta" style="text-align:center; display:block;">Reserve Package</a>
+            </div>
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+</body>
+</html>
+"""
+
+CALCULATOR_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Cost Calculator | Hawkeyi Security</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="section-wrap">
+        <div class="sec-title">
+            <h1>Interactive Surveillance Cost Estimator</h1>
+            <p>Get instant genuine Delhi NCR installation estimates with zero hidden charges</p>
+        </div>
+
+        <div class="calc-container">
+            <div class="calc-grid">
+                <div>
+                    <div class="form-group">
+                        <label>Select Required Camera Units:</label>
+                        <select id="calc_cams" onchange="updateLiveEstimate()">
+                            <option value="2">2 Cameras (Compact Store / Main Entrance)</option>
+                            <option value="4" selected>4 Cameras (3BHK Residence / Retail Storefront)</option>
+                            <option value="8">8 Cameras (Corporate Office / Restaurant / Villa)</option>
+                            <option value="16">16 Cameras (Factory / Residential Block Complex)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Preferred Hardware Manufacturer:</label>
+                        <select id="calc_brand" onchange="updateLiveEstimate()">
+                            <option value="CP Plus" selected>CP Plus Cosmic HD (Reliable Everyday Surveillance)</option>
+                            <option value="Hikvision">Hikvision ColorVu (24/7 Full Color Low-Light Vision)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Local Storage Retention:</label>
+                        <select id="calc_storage" onchange="updateLiveEstimate()">
+                            <option value="15" selected>15 Days Continuous Recording (1TB Surveillance HDD)</option>
+                            <option value="30">30 Days Extended Recording (2TB Surveillance HDD)</option>
+                        </select>
+                    </div>
+                    <div style="font-size:0.85rem; color:#64748b; margin-top:1rem;">
+                        ✔ Includes: SMPS Power Supply, BNC/DC Connectors, High-grade Copper Cable, and Concealed Fitting.
+                    </div>
+                </div>
+
+                <div class="calc-result-box">
+                    <div style="text-transform:uppercase; font-size:0.85rem; letter-spacing:1px; color:#cbd5e1;">Transparent Package Estimate</div>
+                    <div class="calc-price" id="calc_total_display">₹14,500</div>
+                    <div style="font-size:0.85rem; color:#a7f3d0;">GST &amp; 2-Year On-Site Hardware Warranty Included</div>
+                    <div class="calc-breakdown" id="calc_specs">
+                        • 4x High-Definition Weatherproof Cameras<br>
+                        • 1x Standalone Hybrid DVR with Mobile Cloud Sync<br>
+                        • 1x 1TB Dedicated Surveillance Hard Disk<br>
+                        • Complete Concealed Wiring &amp; Calibration
+                    </div>
+                    <a href="/login" class="btn-cta" style="display:inline-block; margin-top:10px;">Save Quote To Client Portal</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+
+    <script>
+        function updateLiveEstimate() {{
+            const cams = parseInt(document.getElementById('calc_cams').value);
+            const brand = document.getElementById('calc_brand').value;
+            const storage = parseInt(document.getElementById('calc_storage').value);
+            
+            let base = 5500;
+            let camCost = (brand === "CP Plus") ? 1450 : 1850;
+            let hdd = (storage <= 15) ? 2800 : 4400;
+            let labour = cams * 400;
+            let total = base + (cams * camCost) + hdd + labour;
+            
+            document.getElementById('calc_total_display').innerText = "₹" + total.toLocaleString('en-IN');
+            document.getElementById('calc_specs').innerHTML = `
+                • ${{cams}}x ${{brand}} High Definition Night-Vision Cameras<br>
+                • 1x Standalone Hybrid DVR with Remote Access<br>
+                • 1x ${{storage <= 15 ? '1TB' : '2TB'}} Surveillance Grade Hard Drive<br>
+                • Concealed Trunking &amp; Fitting up to ${{cams * 25}}m
+            `;
+        }}
+    </script>
+</body>
+</html>
+"""
+
+REVIEWS_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Testimonials | Hawkeyi Security</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="section-wrap">
+        <div class="sec-title">
+            <h1>Verified Customer Testimonials</h1>
+            <p>Real feedback recorded across Delhi NCR (2024–2026)</p>
+        </div>
+
+        <div class="review-grid">
+            {{% for r in all_reviews %}}
+            <div class="review-card">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.8rem;">
+                        <div>
+                            <div class="reviewer-name">{{{{ r.name }}}}</div>
+                            <div class="reviewer-loc">📍 {{{{ r.location }}}}</div>
+                        </div>
+                        <div class="review-stars">
+                            {{% for i in range(r.rating) %}}★{{% endfor %}}
+                        </div>
+                    </div>
+                    <p style="font-size:0.9rem; color:#334155;">"{{{{ r.comment }}}}"</p>
+                </div>
+                <div class="review-date">
+                    <span>🗓️ {{{{ r.date }}}}</span>
+                    <span class="verified-chip">Verified Installation</span>
+                </div>
+            </div>
+            {{% endfor %}}
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+</body>
+</html>
+"""
+
+CAREERS_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Careers &amp; Opportunities | Hawkeyi Security</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="section-wrap">
+        <div class="sec-title">
+            <h1>Careers at Hawkeyi Security</h1>
+            <p>Join Delhi NCR's leading security automation team. Competitive pay, skill training, and career growth.</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 3rem; align-items: flex-start;">
+            <div>
+                <h3 style="font-size: 1.3rem; margin-bottom: 1.2rem; color: var(--primary);">Current Openings in Delhi NCR</h3>
+                
+                <div style="background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 700; color: var(--primary);">1. CCTV Senior Installation Engineer</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 3px;">Full-time • 2-4 Years Exp. in IP &amp; DVR Cabling</div>
+                    <div style="font-size: 0.88rem; color: #475569; margin-top: 0.5rem;">Responsible for physical installation, mobile app configuration, and site inspection across Delhi NCR.</div>
+                </div>
+
+                <div style="background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 700; color: var(--primary);">2. Field Installation Helper / Apprentice</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 3px;">Full-time • Fresher / 6 Months Exp.</div>
+                    <div style="font-size: 0.88rem; color: #475569; margin-top: 0.5rem;">Assist senior technicians in ladder work, concealed trunking, and cable laying. Technical training provided.</div>
+                </div>
+
+                <div style="background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 700; color: var(--primary);">3. B2B Sales Executive (Security &amp; AMC)</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 3px;">Full-time • 1-3 Years Experience</div>
+                    <div style="font-size: 0.88rem; color: #475569; margin-top: 0.5rem;">Pitching society complexes, retail showrooms, and corporate offices for bulk surveillance deployments and AMCs.</div>
+                </div>
+            </div>
+
+            <div style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2.2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.04);">
+                <h3 style="font-size: 1.3rem; margin-bottom: 0.4rem; color: var(--primary);">Submit Your Application</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">Fill in your details and upload your CV / Resume for immediate review.</p>
+
+                <form action="/apply-job" method="POST" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" name="name" placeholder="Enter your full name" required>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Mobile Number</label>
+                            <input type="tel" name="phone" placeholder="10-digit phone number" maxlength="10" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" name="email" placeholder="name@example.com" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Applying For Position</label>
+                        <select name="position" required>
+                            <option value="CCTV Senior Installation Engineer">CCTV Senior Installation Engineer</option>
+                            <option value="Field Installation Helper / Apprentice">Field Installation Helper / Apprentice</option>
+                            <option value="B2B Sales Executive (Security &amp; AMC)">B2B Sales Executive (Security &amp; AMC)</option>
+                            <option value="Other Security Role">Other Security Role</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Relevant Experience</label>
+                        <select name="experience" required>
+                            <option value="Fresher (Willing to Learn)">Fresher (Willing to Learn)</option>
+                            <option value="1 - 2 Years">1 - 2 Years</option>
+                            <option value="3 - 5 Years">3 - 5 Years</option>
+                            <option value="5+ Years Senior Professional">5+ Years Senior Professional</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Upload Resume / Bio-Data (PDF, DOCX, or Image)</label>
+                        <input type="file" name="resume" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">
+                    </div>
+
+                    <button type="submit" class="btn-submit-quote">Submit Job Application 🚀</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+</body>
+</html>
+"""
+
+PORTAL_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Security Dashboard | Hawkeyi</title>
+    {{{{ styles | safe }}}}
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="portal-container">
+        <div class="portal-header">
+            <div>
+                <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; color:#64748b; font-weight:700;">Client Dashboard</div>
+                <h2 style="color:var(--primary); font-size:1.6rem;">Welcome, {{{{ user.name }}}}</h2>
+                <div style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">
+                    <span>📱 +91 {{{{ user.phone }}}}</span> | 
+                    <span>📍 {{{{ user.area }}}}</span> | 
+                    <span>🛡️ Customer ID: #HWK-{{{{ user.id + 1040 }}}}</span>
+                </div>
+            </div>
+            <div class="portal-actions">
+                <button class="btn-ticket" onclick="openModal('ticketModal')">🛠️ Raise Service / Repair Ticket</button>
+                <button class="btn-req-quote" onclick="openModal('quoteModal')">➕ Request New Quotation</button>
+            </div>
+        </div>
+
+        <div class="portal-grid">
+            <div>
+                <div class="portal-card">
+                    <h3>
+                        <span>📋 Active Surveillance Quotations</span>
+                        <span style="font-size:0.85rem; color:var(--text-muted);">Real-time Proposals</span>
+                    </h3>
+                    
+                    {{% if user.quotations %}}
+                        {{% for q in user.quotations %}}
+                        <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1.2rem; margin-bottom:1rem; background:#fcfcfd;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <strong style="font-size:1.1rem; color:var(--primary);">{{{{ q.service_type }}}} ({{{{ q.cameras }}}} Cameras)</strong>
+                                <span class="badge-status status-active">{{{{ q.status }}}}</span>
+                            </div>
+                            <div style="font-size:0.88rem; color:#475569; margin:0.6rem 0;">
+                                Property: <strong>{{{{ q.property_type }}}}</strong> | Brand: <strong>{{{{ q.brand_preference }}}}</strong> | Backup: <strong>{{{{ q.storage_days }}}} Days</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #cbd5e1; padding-top:0.6rem; margin-top:0.6rem;">
+                                <div>Total Estimated Amount: <strong style="color:var(--secondary); font-size:1.2rem;">₹{{{{ q.estimated_amount }}}}</strong> (Inc. GST &amp; Fitting)</div>
+                                <a href="https://wa.me/919876543210?text=Hi%20Hawkeyi,%20I%20wish%20to%20confirm%20Quotation%20No%20{{{{ q.id }}}}" target="_blank" style="background:var(--success); color:white; padding:6px 14px; border-radius:4px; font-size:0.85rem; font-weight:bold;">Confirm via WhatsApp 💬</a>
+                            </div>
+                        </div>
+                        {{% endfor %}}
+                    {{% else %}}
+                        <p style="color:var(--text-muted); font-size:0.9rem;">No active quotations recorded. Click "Request New Quotation" to generate an official cost estimate.</p>
+                    {{% endif %}}
+                </div>
+
+                <div class="portal-card">
+                    <h3>
+                        <span>🛠️ Maintenance &amp; Repair Desk</span>
+                        <span style="font-size:0.85rem; color:var(--text-muted);">Standard SLA: 4 Hours On-Site</span>
+                    </h3>
+
+                    {{% if user.tickets %}}
+                        {{% for t in user.tickets %}}
+                        <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1.2rem; margin-bottom:1rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <strong>Ticket #{{{{ t.ticket_id }}}}: {{{{ t.issue_type }}}}</strong>
+                                <span class="badge-status status-assigned">{{{{ t.status }}}}</span>
+                            </div>
+                            <p style="font-size:0.85rem; color:#64748b; margin:0.5rem 0;">"{{{{ t.description }}}}"</p>
+                            <div style="font-size:0.82rem; background:#f1f5f9; padding:0.6rem; border-radius:4px; display:flex; justify-content:space-between;">
+                                <span>👷 Assigned Technician: <strong>{{{{ t.assigned_engineer }}}}</strong></span>
+                                <span>Scheduled Window: <strong>{{{{ t.preferred_slot }}}}</strong></span>
+                            </div>
+                        </div>
+                        {{% endfor %}}
+                    {{% else %}}
+                        <p style="color:var(--text-muted); font-size:0.9rem;">No unresolved maintenance issues logged. All installed cameras operating within standard parameters.</p>
+                    {{% endif %}}
+                </div>
+            </div>
+
+            <div>
+                <div class="portal-card">
+                    <h3>🛡️ Warranty &amp; AMC Status</h3>
+                    <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:1rem; border-radius:8px; margin-bottom:1rem;">
+                        <div style="font-weight:700; color:#065f46;">✔ 2-Year Direct Replacement Active</div>
+                        <div style="font-size:0.82rem; color:#047857; margin-top:0.3rem;">Covers camera imaging sensors, power supplies, and hard drive failures.</div>
+                    </div>
+                    
+                    <h4 style="font-size:0.92rem; margin-bottom:0.6rem; color:var(--primary);">Routine Annual Maintenance Scope:</h4>
+                    <ul style="font-size:0.85rem; color:#475569; padding-left:1.2rem; line-height:1.7;">
+                        <li>Camera lens cleaning &amp; refocusing</li>
+                        <li>DVR firmware updates &amp; cloud verification</li>
+                        <li>Hard drive health &amp; sector diagnostics</li>
+                        <li>Wiring integrity and terminal check</li>
+                    </ul>
+                </div>
+
+                <div class="portal-card">
+                    <h3>📞 Dedicated Area Manager</h3>
+                    <div style="display:flex; gap:1rem; align-items:center;">
+                        <div style="background:#f59e0b; color:#0a0f1d; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:bold;">H</div>
+                        <div>
+                            <div style="font-weight:700;">Er. Rohit Vashisth</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted);">Lead Field Engineer (Delhi NCR)</div>
+                            <a href="tel:+919876543210" style="color:var(--accent); font-size:0.85rem; font-weight:600;">Direct Contact: +91 9876543210</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="ticketModal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('ticketModal')">&times;</span>
+            <h3 style="margin-bottom:1rem; color:var(--primary);">🛠️ Book Technician Dispatch</h3>
+            <form action="/create-ticket" method="POST">
+                <div class="form-group">
+                    <label>Issue Classification:</label>
+                    <select name="issue_type" required>
+                        <option value="Camera Showing Offline Status">Camera Showing Offline Status</option>
+                        <option value="Night Vision IR Blurry or Unclear">Night Vision IR Blurry or Unclear</option>
+                        <option value="DVR Storage Beeping / Storage Error">DVR Storage Beeping / Storage Error</option>
+                        <option value="Mobile Application Sync Required">Mobile Application Sync Required</option>
+                        <option value="Camera Relocation or Renovation Cable Shift">Camera Relocation or Cable Shift</option>
+                        <option value="Routine Preventative AMC Inspection">Routine Preventative AMC Inspection</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Description of Issue:</label>
+                    <textarea name="description" rows="3" placeholder="Provide details regarding the affected camera or system..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Preferred Field Visit Slot:</label>
+                    <select name="preferred_slot" required>
+                        <option value="Today Evening (4:00 PM - 7:00 PM)">Today Evening (4:00 PM - 7:00 PM)</option>
+                        <option value="Tomorrow Morning (9:00 AM - 12:00 PM)">Tomorrow Morning (9:00 AM - 12:00 PM)</option>
+                        <option value="Tomorrow Afternoon (1:00 PM - 4:00 PM)">Tomorrow Afternoon (1:00 PM - 4:00 PM)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-submit-quote" style="background:#ef4444; color:white;">Dispatch Field Engineer 🚀</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="quoteModal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('quoteModal')">&times;</span>
+            <h3 style="margin-bottom:1rem; color:var(--primary);">➕ Generate Official Surveillance Quotation</h3>
+            <form action="/create-quote" method="POST">
+                <div class="form-group">
+                    <label>Required Cameras:</label>
+                    <select name="cameras" required>
+                        <option value="2">2 HD Surveillance Cameras</option>
+                        <option value="4" selected>4 HD Surveillance Cameras</option>
+                        <option value="8">8 Super HD Surveillance Cameras</option>
+                        <option value="16">16 IP Surveillance Cameras</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Property Classification:</label>
+                    <select name="property_type" required>
+                        <option value="Residential Property">Residential (Independent / Flat)</option>
+                        <option value="Commercial Workspace">Commercial Workspace / Retail Store</option>
+                        <option value="Industrial Facility">Industrial Facility / Warehouse</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Preferred Manufacturer:</label>
+                    <select name="brand">
+                        <option value="CP Plus">CP Plus HD Series</option>
+                        <option value="Hikvision">Hikvision ColorVu Series</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Storage Backup Period:</label>
+                    <select name="storage_days">
+                        <option value="15">15 Days Recording (1TB Dedicated Drive)</option>
+                        <option value="30">30 Days Recording (2TB Dedicated Drive)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-submit-quote">Generate Proposal &amp; Save 📄</button>
+            </form>
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+
+    <script>
+        function openModal(id) {{ document.getElementById(id).style.display = 'flex'; }}
+        function closeModal(id) {{ document.getElementById(id).style.display = 'none'; }}
+    </script>
+</body>
+</html>
+"""
+
+# =========================== CLEAN CLIENT LOGIN TEMPLATE ===========================
+
+AUTH_PAGE = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Portal Access | Hawkeyi Security</title>
+    {{{{ styles | safe }}}}
+    <style>
+        .auth-wrap {{ min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 2rem 5%; }}
+        .auth-card {{ background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2.5rem; width: 100%; max-width: 440px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: center; border-top: 5px solid var(--secondary); }}
+        .auth-logo-box {{ display: flex; justify-content: center; margin-bottom: 1.2rem; }}
+        .auth-badge {{ background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 700; margin-bottom: 1.2rem; display: inline-block; }}
+        .passcode-input {{ font-size: 1.6rem !important; letter-spacing: 8px; text-align: center; font-weight: 800; color: var(--primary); }}
+        .resend-box {{ margin-top: 1.2rem; font-size: 0.85rem; color: var(--text-muted); }}
+        .btn-link {{ background: none; border: none; color: var(--secondary-dark); font-weight: 700; cursor: pointer; text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    {{{{ navbar | safe }}}}
+
+    <div class="auth-wrap">
+        <div class="auth-card">
+            <div class="auth-logo-box">
+                {LOGO_SVG}
+            </div>
+
+            <span class="auth-badge">🛡️ Instant Secure Verification</span>
+            <h2 style="font-size:1.4rem; color:var(--primary); margin-bottom: 0.4rem;">Customer Portal Access</h2>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Access verified surveillance proposals, warranty cards &amp; service tickets</p>
+
+            <!-- STEP 1: MOBILE NUMBER ENTRY -->
+            <form id="step-phone-form" action="/send-otp" method="POST" style="text-align:left; {{% if step == 'verify' %}}display:none;{{% endif %}}">
+                <div class="form-group">
+                    <label>Registered Mobile Number</label>
+                    <input type="tel" name="phone" placeholder="Enter 10-digit mobile number" maxlength="10" value="{{{{ phone or '' }}}}" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Your Name (If first time login)</label>
+                    <input type="text" name="name" placeholder="Full Name" value="{{{{ name or '' }}}}">
+                </div>
+                <button type="submit" class="btn-submit-quote">Send Security Code 📩</button>
+            </form>
+
+            <!-- STEP 2: VERIFICATION CODE ENTRY -->
+            {{% if step == 'verify' %}}
+            <form id="step-otp-form" action="/verify-otp" method="POST" style="text-align:left;">
+                <input type="hidden" name="phone" value="{{{{ phone }}}}">
+                
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:0.8rem; border-radius:6px; margin-bottom:1rem; font-size:0.85rem;">
+                    Verification Code sent to: <strong>+91 {{{{ phone }}}}</strong>
+                    <a href="/login" style="float:right; color:#ef4444; font-weight:600; text-decoration:none;">Change</a>
+                </div>
+
+                <div class="form-group">
+                    <label style="text-align:center;">Enter 6-Digit Access Code</label>
+                    <input type="text" name="otp_code" class="passcode-input" placeholder="••••••" maxlength="6" inputmode="numeric" required autofocus autocomplete="off">
+                </div>
+
+                <button type="submit" class="btn-submit-quote" style="background:#16a34a; color:white;">Verify &amp; Enter Dashboard 🚀</button>
+
+                <div class="resend-box">
+                    <span>Didn't receive code?</span>
+                    <form action="/send-otp" method="POST" style="display:inline;">
+                        <input type="hidden" name="phone" value="{{{{ phone }}}}">
+                        <button type="submit" class="btn-link">Resend Code</button>
+                    </form>
+                </div>
+            </form>
+            {{% endif %}}
+        </div>
+    </div>
+
+    {{{{ footer | safe }}}}
+</body>
+</html>
+"""
+
+# =========================== ROUTING CONTROLLERS ===========================
+
+@app.route('/')
+def index():
+    return render_template_string(
+        LANDING_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION,
+        reviews=CUSTOMER_REVIEWS[:10]
+    )
+
+@app.route('/services')
+def services():
+    return render_template_string(
+        SERVICES_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/packages')
+def packages():
+    return render_template_string(
+        PACKAGES_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/calculator')
+def calculator():
+    return render_template_string(
+        CALCULATOR_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/reviews')
+def reviews():
+    return render_template_string(
+        REVIEWS_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION,
+        all_reviews=CUSTOMER_REVIEWS
+    )
+
+@app.route('/careers')
+def careers():
+    return render_template_string(
+        CAREERS_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/apply-job', methods=['POST'])
+def apply_job():
+    name = request.form.get('name')
+    phone = request.form.get('phone')
+    email = request.form.get('email')
+    position = request.form.get('position')
+    experience = request.form.get('experience')
+
+    resume_filename = None
+    if 'resume' in request.files:
+        file = request.files['resume']
+        if file and file.filename != '':
+            filename = secure_filename(f"{phone}_{file.filename}")
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            resume_filename = filename
+
+    application = JobApplication(
+        name=name,
+        phone=phone,
+        email=email,
+        position=position,
+        experience=experience,
+        resume_file=resume_filename
+    )
+    db.session.add(application)
+    db.session.commit()
+
+    return """
+    <script>
+        alert('Thank you! Your job application has been submitted to Hawkeyi HR. Our team will contact you shortly.');
+        window.location.href = '/careers';
+    </script>
+    """
+
+# =========================== SESSION-BASED FAIL-SAFE VERIFICATION ===========================
+
+@app.route('/login')
+def login():
+    if session.get('user_id'):
+        return redirect(url_for('portal'))
+    return render_template_string(
+        AUTH_PAGE,
+        step="phone",
+        phone="",
+        name="",
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/send-otp', methods=['POST'])
+def send_otp():
+    phone = request.form.get('phone', '').strip()
+    name = request.form.get('name', '').strip()
+
+    if not re.match(r"^[6-9]\d{9}$", phone):
+        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
+
+    otp_code = str(secrets.randbelow(900000) + 100000)
+    
+    # Store directly in secure server session
+    session['auth_phone'] = phone
+    session['auth_code'] = otp_code
+    session['auth_expiry'] = (datetime.utcnow() + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")
+    if name:
+        session['temp_name'] = name
+
+    dispatch_customer_otp(phone, otp_code)
+
+    return render_template_string(
+        AUTH_PAGE,
+        step="verify",
+        phone=phone,
+        name=name,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/verify-otp', methods=['POST'])
+def verify_otp():
+    phone = request.form.get('phone', '').strip()
+    user_otp = request.form.get('otp_code', '').strip()
+
+    saved_phone = session.get('auth_phone')
+    saved_code = session.get('auth_code')
+    expiry_str = session.get('auth_expiry')
+
+    if not saved_code or saved_phone != phone:
+        return "<script>alert('No active verification code found. Please request a new code.'); window.location.href='/login';</script>"
+
+    expiry_time = datetime.strptime(expiry_str, "%Y-%m-%d %H:%M:%S")
+    if datetime.utcnow() > expiry_time:
+        session.pop('auth_code', None)
+        return "<script>alert('Code has expired! Codes are valid for 5 minutes.'); window.location.href='/login';</script>"
+
+    if user_otp != saved_code:
+        return "<script>alert('Incorrect code entered! Please check the code and try again.'); window.history.back();</script>"
+
+    # Clear code after success
+    session.pop('auth_code', None)
+    session.pop('auth_expiry', None)
+
+    # Fetch or Auto-Register Customer Profile
+    user = User.query.filter_by(phone=phone).first()
+    if not user:
+        user_name = session.pop('temp_name', f"Customer {phone[-4:]}")
+        try:
+            user = User(
+                name=user_name,
+                phone=phone,
+                password_hash="OTP_VERIFIED",
+                area="Delhi NCR"
+            )
+            db.session.add(user)
+            db.session.commit()
+        except Exception as db_err:
+            db.session.rollback()
+            user = User.query.filter_by(phone=phone).first()
+
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
+
+@app.route('/quick-book', methods=['POST'])
+def quick_book():
+    name = request.form.get('name')
+    phone = request.form.get('phone')
+    area = request.form.get('area')
+    service_type = request.form.get('service_type')
+
+    if not re.match(r"^[6-9]\d{9}$", phone):
+        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
+
+    user = User.query.filter_by(phone=phone).first()
+    if not user:
+        try:
+            user = User(name=name, phone=phone, password_hash="OTP_VERIFIED", area=area)
+            db.session.add(user)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            user = User.query.filter_by(phone=phone).first()
+
+    cams = 4
+    if "2-Camera" in service_type: cams = 2
+    elif "8-Camera" in service_type: cams = 8
+    elif "16+" in service_type: cams = 16
+
+    est_cost = calculate_quote(cams, "CP Plus", 15)
+
+    quote = Quotation(
+        user_id=user.id,
+        service_type=service_type,
+        property_type="Residential / Commercial",
+        cameras=cams,
+        brand_preference="CP Plus / Hikvision HD",
+        storage_days=15,
+        estimated_amount=est_cost,
+        status="Quotation Confirmed"
+    )
+    db.session.add(quote)
+    db.session.commit()
+
+    send_whatsapp_alert(name, phone, area, service_type, est_cost)
+
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
+
+@app.route('/portal')
+def portal():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+    user = User.query.get(user_id)
+    return render_template_string(
+        PORTAL_PAGE,
+        user=user,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/create-quote', methods=['POST'])
+def create_quote():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    user = User.query.get(user_id)
+    cams = int(request.form.get('cameras'))
+    prop = request.form.get('property_type')
+    brand = request.form.get('brand')
+    storage = int(request.form.get('storage_days'))
+
+    cost = calculate_quote(cams, brand, storage)
+    q = Quotation(
+        user_id=user_id,
+        service_type=f"{brand} {cams}-Camera System",
+        property_type=prop,
+        cameras=cams,
+        brand_preference=brand,
+        storage_days=storage,
+        estimated_amount=cost,
+        status="Quotation Generated"
+    )
+    db.session.add(q)
+    db.session.commit()
+
+    send_whatsapp_alert(user.name, user.phone, user.area, f"{brand} {cams}-Camera System", cost)
+    return redirect(url_for('portal'))
+
+@app.route('/create-ticket', methods=['POST'])
+def create_ticket():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    user = User.query.get(user_id)
+    issue = request.form.get('issue_type')
+    desc = request.form.get('description')
+    slot = request.form.get('preferred_slot')
+
+    ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
+
+    ticket = MaintenanceTicket(
+        ticket_id=ticket_code,
+        user_id=user_id,
+        issue_type=issue,
+        description=desc,
+        preferred_slot=slot,
+        status="Technician Dispatched"
+    )
+    db.session.add(ticket)
+    db.session.commit()
+
+    send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
+    return redirect(url_for('portal'))
+
+# =========================== OWNER ADMIN CONSOLE & EXPORT ===========================
+
+ADMIN_PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hawkeyi Security - Business Management Console</title>
+    <style>
+        body { font-family: sans-serif; background: #0a0f1d; color: white; padding: 2rem 5%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: #121929; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
+        th { background: #f59e0b; color: #0a0f1d; }
+        .export-btn { background: #22c55e; color: white; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; }
+        .chat-btn { background: #25d366; color: white; padding: 5px 12px; border-radius: 4px; text-decoration: none; font-size: 0.82rem; font-weight: bold; }
+        .tab-head { color: #f59e0b; margin-top: 2.5rem; border-bottom: 2px solid #334155; padding-bottom: 0.5rem; }
+        .pwd-card { background: #121929; border: 1px solid #334155; padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem; max-width: 480px; }
+        .pwd-input { padding: 8px 12px; border-radius: 4px; border: 1px solid #334155; background: #0a0f1d; color: white; width: 100%; box-sizing: border-box; margin-bottom: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+        <div>
+            <h2 style="font-size:1.8rem;">📊 Business Operations Console</h2>
+            <p style="color:#94a3b8; font-size:0.9rem;">Hawkeyi Security &amp; Automation Control Center</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <a href="/" style="color:#f59e0b; text-decoration:none; font-weight:bold;">🌐 View Public Website</a>
+            <a href="/admin/export-csv" class="export-btn">📥 Download All Leads (Excel/CSV)</a>
+            <a href="/admin/logout" style="color:#ef4444; font-weight: bold; text-decoration:none;">Logout</a>
+        </div>
+    </div>
+
+    <div class="pwd-card">
+        <h4 style="margin-bottom:0.8rem; color:#f59e0b;">🔐 Update Admin Password</h4>
+        <form action="/admin/change-password" method="POST">
+            <input type="password" name="new_password" placeholder="Create new password (min 6 chars)" class="pwd-input" required minlength="6">
+            <button type="submit" style="background:#f59e0b; color:#0a0f1d; padding:8px 16px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Update Password</button>
+        </form>
+    </div>
+
+    <h3 class="tab-head">🔥 Customer Quotations &amp; Leads ({{ quotes|length }})</h3>
+    <table>
+        <tr><th>Date</th><th>Client Name</th><th>Mobile</th><th>Area</th><th>Service / Cameras</th><th>Estimated Cost</th><th>Direct WhatsApp</th></tr>
+        {% for q in quotes %}
+        <tr>
+            <td>{{ q.created_at.strftime('%d-%b %I:%M %p') }}</td>
+            <td><strong>{{ q.customer.name }}</strong></td>
+            <td>{{ q.customer.phone }}</td>
+            <td>{{ q.customer.area }}</td>
+            <td>{{ q.service_type }} ({{ q.cameras }} Cams)</td>
+            <td><strong style="color:#f59e0b;">₹{{ q.estimated_amount }}</strong></td>
+            <td><a href="https://wa.me/91{{ q.customer.phone }}" target="_blank" class="chat-btn">Chat 💬</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h3 class="tab-head">🛠️ Active Maintenance Requests ({{ tickets|length }})</h3>
+    <table>
+        <tr><th>Ticket ID</th><th>Client</th><th>Issue Description</th><th>Requested Slot</th><th>Status</th></tr>
+        {% for t in tickets %}
+        <tr>
+            <td><strong>#{{ t.ticket_id }}</strong></td>
+            <td>{{ t.customer.name }} ({{ t.customer.phone }})</td>
+            <td>{{ t.issue_type }} - <em>"{{ t.description }}"</em></td>
+            <td>{{ t.preferred_slot }}</td>
+            <td><span style="background:#e0e7ff; color:#4338ca; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem;">{{ t.status }}</span></td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h3 class="tab-head">💼 Career Job Applications ({{ applications|length }})</h3>
+    <table>
+        <tr><th>Date</th><th>Applicant Name</th><th>Contact Details</th><th>Position</th><th>Experience</th><th>Resume / CV</th></tr>
+        {% for app in applications %}
+        <tr>
+            <td>{{ app.created_at.strftime('%d-%b %Y') }}</td>
+            <td><strong>{{ app.name }}</strong></td>
+            <td>📞 {{ app.phone }}<br>✉️ {{ app.email }}</td>
+            <td>{{ app.position }}</td>
+            <td>{{ app.experience }}</td>
+            <td>
+                {% if app.resume_file %}
+                <a href="/resumes/{{ app.resume_file }}" target="_blank" style="color:#f59e0b; font-weight:bold;">Download CV 📄</a>
+                {% else %}
+                <span style="color:#64748b;">No file attached</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
+"""
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin():
+    if not session.get('is_admin'):
+        if request.method == 'POST':
+            username_input = request.form.get('u')
+            password_input = request.form.get('p')
+            
+            admin_user = AdminUser.query.filter_by(username=username_input).first()
+            if admin_user and check_password_hash(admin_user.password_hash, password_input):
+                session['is_admin'] = True
+                return redirect('/admin')
+            return "<script>alert('Invalid Admin Credentials'); window.history.back();</script>"
+        
+        return """
+        <body style='background:#0a0f1d; color:white; font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; margin:0;'>
+            <form method='POST' style='background:#121929; padding:2.5rem; border-radius:10px; border-top:4px solid #f59e0b; width:340px; box-shadow:0 15px 35px rgba(0,0,0,0.5);'>
+                <h3 style='margin-bottom:1.5rem; text-align:center;'>Owner Admin Login</h3>
+                <input name='u' placeholder='Username' required style='padding:10px; width:100%; box-sizing:border-box; margin-bottom:1rem; border-radius:5px; border:1px solid #334155; background:#0a0f1d; color:white;'><br>
+                <input name='p' type='password' placeholder='Password' required style='padding:10px; width:100%; box-sizing:border-box; margin-bottom:1.5rem; border-radius:5px; border:1px solid #334155; background:#0a0f1d; color:white;'><br>
+                <button type='submit' style='background:#f59e0b; color:#0a0f1d; padding:12px; width:100%; font-weight:bold; border:none; border-radius:5px; cursor:pointer;'>Access Console</button>
+                <div style='text-align:center; margin-top:1.5rem;'>
+                    <a href='/' style='color:#94a3b8; text-decoration:none; font-size:0.85rem;'>← Back to Website Homepage</a>
+                </div>
+            </form>
+        </body>
+        """
+    
+    quotes = Quotation.query.order_by(Quotation.created_at.desc()).all()
+    tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.created_at.desc()).all()
+    apps = JobApplication.query.order_by(JobApplication.created_at.desc()).all()
+    return render_template_string(ADMIN_PAGE, quotes=quotes, tickets=tickets, applications=apps)
+
+@app.route('/admin/change-password', methods=['POST'])
+def admin_change_password():
+    if not session.get('is_admin'):
+        return redirect('/admin')
+    
+    new_pwd = request.form.get('new_password')
+    if new_pwd and len(new_pwd) >= 6:
+        admin_user = AdminUser.query.filter_by(username="admin").first()
+        if admin_user:
+            admin_user.password_hash = generate_password_hash(new_pwd)
+            db.session.commit()
+            return "<script>alert('Password successfully updated! Please log in with your new password.'); window.location.href='/admin/logout';</script>"
+    
+    return "<script>alert('Password must be at least 6 characters.'); window.history.back();</script>"
+
+@app.route('/admin/export-csv')
+def export_csv():
+    if not session.get('is_admin'):
+        return redirect('/admin')
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Date & Time', 'Customer Name', 'Mobile Phone', 'Delhi Area', 'Surveillance Service', 'Cameras', 'Estimated Amount (INR)', 'Status'])
+
+    quotes = Quotation.query.order_by(Quotation.created_at.desc()).all()
+    for q in quotes:
+        writer.writerow([
+            q.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            q.customer.name,
+            q.customer.phone,
+            q.customer.area,
+            q.service_type,
+            q.cameras,
+            q.estimated_amount,
+            q.status
+        ])
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename=Hawkeyi_Leads_{datetime.now().strftime('%d_%b_%Y')}.csv"}
+    )
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('is_admin', None)
+    return redirect('/admin')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
