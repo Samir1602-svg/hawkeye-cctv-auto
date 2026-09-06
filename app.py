@@ -1515,7 +1515,7 @@ def calculate_quote(cameras, brand="Hawkeye", storage=15):
 
 LOGO_SVG = """
 <div class="brand-badge-container">
-    <img src="/static/logo.png" alt="Hawkeye CCTV Logo" class="brand-logo-img cctv-scan-pulse" width="46" height="46">
+    <img src="/logo.png" alt="Hawkeye CCTV Logo" class="brand-logo-img cctv-scan-pulse" width="46" height="46">
     <div class="brand-titles">
         <div class="brand-name">HAWK<span class="gold-text">EYE</span></div>
         <div class="brand-sub">CCTV AND AUTOMATION</div>
@@ -2539,6 +2539,10 @@ AUTH_PAGE = f"""
 """
 
 # =========================== ROUTING CONTROLLERS ===========================
+@app.route('/logo.png')
+def serve_root_logo():
+    from flask import send_from_directory
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'logo.png')
 
 @app.route('/')
 def index():
