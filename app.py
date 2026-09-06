@@ -1858,6 +1858,7 @@ LANDING_PAGE = f"""
                     </select>
                 </div>
                 <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
+                </form>
                 <!-- OTP Verification Popup Modal -->
 <div id="otpModal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.75); align-items:center; justify-content:center;">
     <div style="background:#1e293b; border:1px solid #475569; padding:24px; border-radius:12px; max-width:380px; width:90%; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
@@ -2804,80 +2805,6 @@ def login():
         navbar=render_template_string(NAV_BAR),
         footer=FOOTER_SECTION
     )
-
-@app.route('/send-otp', methods=['POST'])
-def send_otp():
-    phone = request.form.get('phone', '').strip()
-    name = request.form.get('name', '').strip()
-
-    if not re.match(r"^[6-9]\d{9}$", phone):
-        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
-
-    otp_code = str(secrets.randbelow(900000) + 100000)
-    
-    # Store directly in secure server session
-    session['auth_phone'] = phone
-    session['auth_code'] = otp_code
-    session['auth_expiry'] = (datetime.utcnow() + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")
-    if name:
-        session['temp_name'] = name
-
-    dispatch_customer_otp(phone, otp_code)
-
-    return render_template_string(
-        AUTH_PAGE,
-        step="verify",
-        phone=phone,
-        name=name,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/verify-otp', methods=['POST'])
-def verify_otp():
-    phone = request.form.get('phone', '').strip()
-    user_otp = request.form.get('otp_code', '').strip()
-
-    saved_phone = session.get('auth_phone')
-    saved_code = session.get('auth_code')
-    expiry_str = session.get('auth_expiry')
-
-    if not saved_code or saved_phone != phone:
-        return "<script>alert('No active verification code found. Please request a new code.'); window.location.href='/login';</script>"
-
-    expiry_time = datetime.strptime(expiry_str, "%Y-%m-%d %H:%M:%S")
-    if datetime.utcnow() > expiry_time:
-        session.pop('auth_code', None)
-        return "<script>alert('Code has expired! Codes are valid for 5 minutes.'); window.location.href='/login';</script>"
-
-    if user_otp != saved_code:
-        return "<script>alert('Incorrect code entered! Please check the code and try again.'); window.history.back();</script>"
-
-    # Clear code after success
-    session.pop('auth_code', None)
-    session.pop('auth_expiry', None)
-
-    # Fetch or Auto-Register Customer Profile
-    user = User.query.filter_by(phone=phone).first()
-    if not user:
-        user_name = session.pop('temp_name', f"Customer {phone[-4:]}")
-        try:
-            user = User(
-                name=user_name,
-                phone=phone,
-                password_hash="OTP_VERIFIED",
-                area="Delhi NCR"
-            )
-            db.session.add(user)
-            db.session.commit()
-        except Exception as db_err:
-            db.session.rollback()
-            user = User.query.filter_by(phone=phone).first()
-
-    session['user_id'] = user.id
-    session['user_name'] = user.name
-    return redirect(url_for('portal'))
 
 @app.route('/quick-book', methods=['POST'])
 def quick_book():
