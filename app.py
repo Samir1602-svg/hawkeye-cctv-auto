@@ -1829,132 +1829,121 @@ LANDING_PAGE = f"""
                 </div>
             </div>
 
-            <div class="hero-form-box" id="get-quote">
+           <div class="hero-form-box" id="get-quote">
                 <h3>Request Instant Survey</h3>
                 <p class="sub">Official quotation will sync directly to your customer account</p>
-               <div class="form-group">
-                    <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                    <input type="text" name="name" placeholder="Enter your name" required>
-                </div>
-                <div class="form-group">
-                    <label>Email Address (For Verification OTP) <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                    <input type="email" name="email" id="survey_email" placeholder="name@example.com" required>
-                </div>
-                <div class="form-group">
-                    <label>Mobile Number (For Verification &amp; Instant Access) <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                    <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
-                </div>
-                <div class="form-group">
-                    <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                    <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
-                </div>
-                <div class="form-group">
-                    <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                    <select name="service_type" required>
-                        <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
-                        <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
-                        <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
-                        <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
+                <form id="heroQuoteForm" action="/quick-book" method="POST">
+                    <div class="form-group">
+                        <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="text" name="name" id="q_name" placeholder="Enter your name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address (For Verification OTP) <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="email" name="email" id="q_email" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mobile Number (For Verification &amp; Instant Access) <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="tel" name="phone" id="q_phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="text" name="area" id="q_area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <select name="service_type" required>
+                            <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
+                            <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
+                            <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
+                            <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="startSurveyVerification()" class="btn-submit-quote">Generate My Quotation 🚀</button>
                 </form>
-                <!-- OTP Verification Popup Modal -->
-<div id="otpModal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.75); align-items:center; justify-content:center;">
-    <div style="background:#1e293b; border:1px solid #475569; padding:24px; border-radius:12px; max-width:380px; width:90%; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
-        <h4 style="color:#f8fafc; margin-bottom:8px; font-size:1.2rem;">Email Verification</h4>
-        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:16px;">We sent a 6-digit verification code to your email address.</p>
-        
-        <input type="text" id="otp_input" maxlength="6" placeholder="Enter 6-digit OTP" style="width:100%; padding:10px; text-align:center; font-size:1.2rem; letter-spacing:4px; border-radius:6px; background:#0f172a; border:1px solid #334155; color:#fff; margin-bottom:14px;">
-        
-        <div id="otp_status" style="font-size:0.85rem; margin-bottom:12px; display:none;"></div>
-        
-        <button type="button" id="btnVerifyOtp" onclick="submitOtpVerification()" style="width:100%; padding:10px; background:#f97316; color:#fff; font-weight:bold; border:none; border-radius:6px; cursor:pointer; margin-bottom:8px;">Verify &amp; Continue</button>
-        <button type="button" onclick="closeOtpModal()" style="width:100%; padding:8px; background:transparent; color:#94a3b8; border:none; cursor:pointer; font-size:0.85rem;">Cancel</button>
-    </div>
-</div>
 
-<script>
-let quotationForm = document.querySelector('form[action="/quick-book"]');
+                <div id="surveyOtpModal" style="display:none; position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+                    <div style="background:#1e293b; border:1px solid #475569; padding:24px; border-radius:12px; max-width:380px; width:90%; text-align:center;">
+                        <h4 style="color:#f8fafc; font-size:1.2rem; margin-bottom:6px;">Security Code Sent</h4>
+                        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:14px;">Enter the 6-digit code sent to your email</p>
+                        <input type="text" id="survey_user_otp" maxlength="6" placeholder="••••••" style="width:100%; padding:10px; text-align:center; font-size:1.3rem; letter-spacing:4px; border-radius:6px; background:#0f172a; border:1px solid #334155; color:#fff; margin-bottom:12px;">
+                        <div id="survey_otp_msg" style="font-size:0.85rem; margin-bottom:12px; display:none;"></div>
+                        <button type="button" onclick="confirmSurveyOtp()" style="width:100%; padding:10px; background:#38bdf8; color:#0a0f1d; font-weight:bold; border:none; border-radius:6px; cursor:pointer; margin-bottom:8px;">Verify &amp; Confirm Quote</button>
+                        <button type="button" onclick="document.getElementById('surveyOtpModal').style.display='none'" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:0.82rem;">Cancel</button>
+                    </div>
+                </div>
 
-if (quotationForm) {{
-    quotationForm.addEventListener('submit', function(e) {{
-        if (!window.isOtpVerified) {{
-            e.preventDefault();
-            let emailVal = document.getElementById('survey_email').value;
-            let statusDiv = document.getElementById('otp_status');
-            
-            document.getElementById('otpModal').style.display = 'flex';
-            statusDiv.style.display = 'block';
-            statusDiv.style.color = '#38bdf8';
-            statusDiv.innerText = 'Sending OTP to your email...';
+                <script>
+                function startSurveyVerification() {{
+                    let name = document.getElementById('q_name').value.trim();
+                    let email = document.getElementById('q_email').value.trim();
+                    let phone = document.getElementById('q_phone').value.trim();
+                    let area = document.getElementById('q_area').value.trim();
 
-            let formData = new FormData();
-            formData.append('email', emailVal);
+                    if (!name || !email || !phone || !area) {{
+                        alert('Please fill in all required fields marked with *');
+                        return;
+                    }}
 
-            fetch('/send-otp', {{
-                method: 'POST',
-                body: formData
-            }})
-            .then(res => res.json())
-            .then(data => {{
-                if (data.success) {{
-                    statusDiv.style.color = '#4ade80';
-                    statusDiv.innerText = 'OTP sent! Please check your inbox.';
-                }} else {{
-                    statusDiv.style.color = '#ef4444';
-                    statusDiv.innerText = data.message || 'Failed to send OTP.';
+                    let msg = document.getElementById('survey_otp_msg');
+                    document.getElementById('surveyOtpModal').style.display = 'flex';
+                    msg.style.display = 'block';
+                    msg.style.color = '#38bdf8';
+                    msg.innerText = 'Dispatching code to ' + email + '...';
+
+                    let fd = new FormData();
+                    fd.append('email', email);
+
+                    fetch('/send-otp', {{ method: 'POST', body: fd }})
+                    .then(r => r.json())
+                    .then(d => {{
+                        if (d.success) {{
+                            msg.style.color = '#4ade80';
+                            msg.innerText = 'Code sent! Check your inbox/spam folder.';
+                        }} else {{
+                            msg.style.color = '#ef4444';
+                            msg.innerText = d.message || 'Error sending code';
+                        }}
+                    }})
+                    .catch(() => {{
+                        msg.style.color = '#ef4444';
+                        msg.innerText = 'Network connection error';
+                    }});
                 }}
-            }})
-            .catch(() => {{
-                statusDiv.style.color = '#ef4444';
-                statusDiv.innerText = 'Network error while sending OTP.';
-            }});
-        }}
-    }});
-}}
 
-function submitOtpVerification() {{
-    let otpVal = document.getElementById('otp_input').value.trim();
-    let statusDiv = document.getElementById('otp_status');
+                function confirmSurveyOtp() {{
+                    let otp = document.getElementById('survey_user_otp').value.trim();
+                    let msg = document.getElementById('survey_otp_msg');
 
-    if (otpVal.length !== 6) {{
-        statusDiv.style.display = 'block';
-        statusDiv.style.color = '#ef4444';
-        statusDiv.innerText = 'Please enter valid 6-digit OTP';
-        return;
-    }}
+                    if (otp.length !== 6) {{
+                        msg.style.display = 'block';
+                        msg.style.color = '#ef4444';
+                        msg.innerText = 'Enter complete 6-digit code';
+                        return;
+                    }}
 
-    let formData = new FormData();
-    formData.append('otp', otpVal);
+                    let fd = new FormData();
+                    fd.append('otp', otp);
 
-    fetch('/verify-otp', {{
-        method: 'POST',
-        body: formData
-    }})
-    .then(res => res.json())
-    .then(data => {{
-        if (data.success) {{
-            window.isOtpVerified = true;
-            document.getElementById('otpModal').style.display = 'none';
-            quotationForm.submit();
-        }} else {{
-            statusDiv.style.display = 'block';
-            statusDiv.style.color = '#ef4444';
-            statusDiv.innerText = data.message || 'Invalid OTP. Try again.';
-        }}
-    }})
-    .catch(() => {{
-        statusDiv.style.display = 'block';
-        statusDiv.style.color = '#ef4444';
-        statusDiv.innerText = 'Verification failed. Try again.';
-    }});
-}}
-
-function closeOtpModal() {{
-    document.getElementById('otpModal').style.display = 'none';
-}}
-</script>                </div>
+                    fetch('/verify-otp', {{ method: 'POST', body: fd }})
+                    .then(r => r.json())
+                    .then(d => {{
+                        if (d.success) {{
+                            document.getElementById('surveyOtpModal').style.display = 'none';
+                            document.getElementById('heroQuoteForm').submit();
+                        }} else {{
+                            msg.style.display = 'block';
+                            msg.style.color = '#ef4444';
+                            msg.innerText = d.message || 'Invalid code';
+                        }}
+                    }})
+                    .catch(() => {{
+                        msg.style.display = 'block';
+                        msg.style.color = '#ef4444';
+                        msg.innerText = 'Verification failed';
+                    }});
+                }}
+                </script>
+                </div>
         </div>
     </section>
 
@@ -2599,6 +2588,7 @@ PORTAL_PAGE = f"""
 """
 
 AUTH_PAGE = f"""
+AUTH_PAGE = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2611,57 +2601,96 @@ AUTH_PAGE = f"""
 <body>
     {{{{ navbar | safe }}}}
 
-    <div class="auth-wrap">
-        <div class="auth-card">
-            <div class="auth-logo-box">
-                {LOGO_SVG}
+    <div class="auth-wrap" style="max-width:440px; margin:4rem auto; background:white; padding:2.2rem; border-radius:12px; box-shadow:0 15px 35px rgba(0,0,0,0.08); text-align:center;">
+        <span class="auth-badge" style="background:#e0f2fe; color:#0369a1; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:bold;">🛡️ Secure Dual Verification</span>
+        <h2 style="font-size:1.4rem; color:var(--primary); margin: 0.8rem 0 0.4rem 0;">Customer Portal Access</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Verify your registered details to access quotations and AMC tickets</p>
+
+        <form id="clientLoginForm" action="/client-login" method="POST" style="text-align:left;">
+            <div class="form-group">
+                <label>Registered Mobile Number <span style="color:#ef4444;">*</span></label>
+                <input type="tel" name="phone" id="login_phone" placeholder="10-digit mobile number" maxlength="10" required>
             </div>
-
-            <span class="auth-badge">🛡️ Instant Secure Verification</span>
-            <h2 style="font-size:1.4rem; color:var(--primary); margin-bottom: 0.4rem;">Customer Portal Access</h2>
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Access verified surveillance proposals, warranty cards &amp; service tickets</p>
-
-            <!-- STEP 1: MOBILE NUMBER ENTRY -->
-            <form id="step-phone-form" action="/send-otp" method="POST" style="text-align:left; {{% if step == 'verify' %}}display:none;{{% endif %}}">
+            <div class="form-group">
+                <label>Email Address <span style="color:#ef4444;">*</span></label>
+                <input type="email" name="email" id="login_email" placeholder="name@example.com" required>
+            </div>
+            <button type="button" onclick="sendLoginCode()" class="btn-submit-quote" id="btnSendCode">Send Verification Code 📩</button>
+            
+            <div id="otpInputSection" style="display:none; margin-top:1.5rem; border-top:1px dashed #cbd5e1; padding-top:1.2rem;">
                 <div class="form-group">
-                    <label>Registered Mobile Number</label>
-                    <input type="tel" name="phone" placeholder="Enter 10-digit mobile number" maxlength="10" value="{{{{ phone or '' }}}}" required autofocus>
+                    <label style="text-align:center;">Enter 6-Digit Email OTP</label>
+                    <input type="text" name="otp" id="login_otp" maxlength="6" placeholder="••••••" style="text-align:center; font-size:1.3rem; letter-spacing:4px;" required>
                 </div>
-                <div class="form-group">
-                    <label>Your Name (If first time login)</label>
-                    <input type="text" name="name" placeholder="Full Name" value="{{{{ name or '' }}}}">
-                </div>
-                <button type="submit" class="btn-submit-quote">Send Security Code 📩</button>
-            </form>
-
-            <!-- STEP 2: VERIFICATION CODE ENTRY -->
-            {{% if step == 'verify' %}}
-            <form id="step-otp-form" action="/verify-otp" method="POST" style="text-align:left;">
-                <input type="hidden" name="phone" value="{{{{ phone }}}}">
-                
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:0.8rem; border-radius:6px; margin-bottom:1rem; font-size:0.85rem;">
-                    Verification Code sent to: <strong>+91 {{{{ phone }}}}</strong>
-                    <a href="/login" style="float:right; color:#ef4444; font-weight:600; text-decoration:none;">Change</a>
-                </div>
-
-                <div class="form-group">
-                    <label style="text-align:center;">Enter 6-Digit Access Code</label>
-                    <input type="text" name="otp_code" class="passcode-input" placeholder="••••••" maxlength="6" inputmode="numeric" required autofocus autocomplete="off">
-                </div>
-
-                <button type="submit" class="btn-submit-quote" style="background:#16a34a; color:white;">Verify &amp; Enter Dashboard 🚀</button>
-
-                <div class="resend-box">
-                    <span>Didn't receive code?</span>
-                    <form action="/send-otp" method="POST" style="display:inline;">
-                        <input type="hidden" name="phone" value="{{{{ phone }}}}">
-                        <button type="submit" class="btn-link">Resend Code</button>
-                    </form>
-                </div>
-            </form>
-            {{% endif %}}
-        </div>
+                <div id="login_status" style="font-size:0.85rem; margin-bottom:10px; text-align:center;"></div>
+                <button type="button" onclick="verifyAndLogin()" class="btn-submit-quote" style="background:#16a34a; color:white;">Verify &amp; Enter Dashboard 🚀</button>
+            </div>
+        </form>
     </div>
+
+    <script>
+    function sendLoginCode() {{
+        let phone = document.getElementById('login_phone').value.trim();
+        let email = document.getElementById('login_email').value.trim();
+        let status = document.getElementById('login_status');
+
+        if(phone.length !== 10 || !email) {{
+            alert('Please provide a valid 10-digit mobile number and email address.');
+            return;
+        }}
+
+        document.getElementById('btnSendCode').innerText = 'Sending Code...';
+
+        let fd = new FormData();
+        fd.append('email', email);
+
+        fetch('/send-otp', {{ method: 'POST', body: fd }})
+        .then(r => r.json())
+        .then(d => {{
+            if(d.success) {{
+                document.getElementById('otpInputSection').style.display = 'block';
+                status.style.color = '#16a34a';
+                status.innerText = 'OTP successfully sent to ' + email;
+            }} else {{
+                alert(d.message || 'Failed to dispatch OTP');
+                document.getElementById('btnSendCode').innerText = 'Send Verification Code 📩';
+            }}
+        }})
+        .catch(() => {{
+            alert('Network error while sending OTP');
+            document.getElementById('btnSendCode').innerText = 'Send Verification Code 📩';
+        }});
+    }}
+
+    function verifyAndLogin() {{
+        let otp = document.getElementById('login_otp').value.trim();
+        let status = document.getElementById('login_status');
+
+        if(otp.length !== 6) {{
+            status.style.color = '#ef4444';
+            status.innerText = 'Please enter valid 6-digit OTP';
+            return;
+        }}
+
+        let fd = new FormData();
+        fd.append('otp', otp);
+
+        fetch('/verify-otp', {{ method: 'POST', body: fd }})
+        .then(r => r.json())
+        .then(d => {{
+            if(d.success) {{
+                document.getElementById('clientLoginForm').submit();
+            }} else {{
+                status.style.color = '#ef4444';
+                status.innerText = d.message || 'Invalid OTP code';
+            }}
+        }})
+        .catch(() => {{
+            status.style.color = '#ef4444';
+            status.innerText = 'Verification failed';
+        }});
+    }}
+    </script>
 
     {{{{ footer | safe }}}}
 </body>
@@ -2796,14 +2825,32 @@ def login():
         return redirect(url_for('portal'))
     return render_template_string(
         AUTH_PAGE,
-        step="phone",
-        phone="",
-        name="",
         styles=STYLES,
         navbar=render_template_string(NAV_BAR),
         footer=FOOTER_SECTION
     )
 
+@app.route('/client-login', methods=['POST'])
+def client_login_submit():
+    phone = request.form.get('phone', '').strip()
+    email = request.form.get('email', '').strip()
+
+    user = User.query.filter((User.phone == phone) | (User.email == email)).first()
+    if not user:
+        user = User(
+            name=f"Client {phone[-4:]}",
+            phone=phone,
+            email=email,
+            password_hash="OTP_VERIFIED",
+            area="Delhi NCR"
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
+    
 @app.route('/quick-book', methods=['POST'])
 def quick_book():
     name = request.form.get('name')
