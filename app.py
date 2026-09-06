@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 GMAIL_USER = "s82263353@gmail.com"        # Apna Gmail ID 
-GMAIL_APP_PASSWORD = "wycsuszueoxzwhoa"       # 16-digit Google App Password yahan paste karein
+GMAIL_APP_PASSWORD = "wycsuszueoxzwhoa"        # 16-digit Google App Password
 
 def send_email_otp(to_email, otp_code):
     try:
@@ -35,7 +35,6 @@ Regards,
 Hawkeye CCTV & Automation Team"""
         msg.attach(MIMEText(body, 'plain'))
         
-        # Port 587 with STARTTLS (Cloud & Render ke liye 100% reliable)
         server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
@@ -45,18 +44,17 @@ Hawkeye CCTV & Automation Team"""
     except Exception as e:
         print(f"Failed to send email OTP: {e}")
         return False
+
 app = Flask(__name__)
 app.secret_key = 'hawkeye_cctv_secure_production_secret_key_2026'
 
 # --- PERSISTENT DATABASE & DATA PROTECTION CONFIG ---
-# Supports Render PostgreSQL (DATABASE_URL) or persistent local directory
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 else:
-    # Use persistent instance path
     db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
     os.makedirs(db_dir, exist_ok=True)
     app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(db_dir, 'hawkeye_main.db')}"
@@ -81,20 +79,6 @@ def send_whatsapp_alert(lead_name, lead_phone, lead_area, service, cost):
         requests.get(url, timeout=3)
     except Exception as e:
         print(f"WhatsApp Notification Error: {e}")
-
-def dispatch_customer_otp(phone_number, otp_code):
-    """Prints verification code cleanly to terminal and dispatches to WhatsApp/SMS if configured"""
-    print("\n" + "="*55)
-    print(f"🔐 [HAWKEYE SECURITY VERIFICATION] -> Mobile: +91 {phone_number}")
-    print(f"🔑 [ACCESS CODE]: {otp_code}")
-    print(f"⏳ [VALIDITY]: 5 Minutes (Expires at: {(datetime.utcnow() + timedelta(minutes=5)).strftime('%I:%M:%S %p')})")
-    print("="*55 + "\n")
-    try:
-        msg = f"Your Hawkeye Security verification code is: {otp_code}. Valid for 5 minutes. Please do not share this code."
-        url = f"https://api.callmebot.com/whatsapp.php?phone=91{phone_number}&text={requests.utils.quote(msg)}&apikey={CALLMEBOT_API_KEY}"
-        requests.get(url, timeout=2)
-    except Exception:
-        pass
 
 # =========================== DATABASE MODELS ===========================
 
@@ -148,1359 +132,14 @@ class JobApplication(db.Model):
     resume_file = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# =========================== 135+ VERIFIED REVIEWS DATASET ===========================
-# All 135 individual client installations spanning from 2024 to 2026 across Delhi NCR
+# =========================== REVIEWS DATASET ===========================
 CUSTOMER_REVIEWS = [
-    {
-        "id": 5,
-        "name": "Ankit Dubey",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "25 Aug 2026, 03:21 PM",
-        "timestamp": "2026-08-25T15:21:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 59,
-        "name": "Ashok Tiwari",
-        "location": "Punjabi Bagh West",
-        "rating": 5,
-        "date": "14 Aug 2026, 07:54 PM",
-        "timestamp": "2026-08-14T19:54:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 22,
-        "name": "Rajesh Yadav",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "09 Aug 2026, 05:48 PM",
-        "timestamp": "2026-08-09T17:48:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 85,
-        "name": "Mohit Gupta",
-        "location": "Shahdara",
-        "rating": 5,
-        "date": "30 Jul 2026, 01:14 PM",
-        "timestamp": "2026-07-30T13:14:00",
-        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 52,
-        "name": "Neha Bhatia",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "29 Jul 2026, 07:19 PM",
-        "timestamp": "2026-07-29T19:19:00",
-        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 51,
-        "name": "Mukesh Singhal",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "27 Jul 2026, 08:20 PM",
-        "timestamp": "2026-07-27T20:20:00",
-        "comment": "Recommended by my neighbor in Model. Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 110,
-        "name": "Sanjay Chawla",
-        "location": "Lajpat Nagar IV",
-        "rating": 5,
-        "date": "27 Jul 2026, 10:36 AM",
-        "timestamp": "2026-07-27T10:36:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
-        "verified": True
-    },
-    {
-        "id": 66,
-        "name": "Tarun Mehta",
-        "location": "Malviya Nagar",
-        "rating": 5,
-        "date": "24 Jul 2026, 10:22 AM",
-        "timestamp": "2026-07-24T10:22:00",
-        "comment": "Recommended by my neighbor in Malviya. Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
-        "verified": True
-    },
-    {
-        "id": 104,
-        "name": "Vikram Aggarwal",
-        "location": "Faridabad Sector 15",
-        "rating": 5,
-        "date": "20 Jul 2026, 09:05 AM",
-        "timestamp": "2026-07-20T09:05:00",
-        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
-        "verified": True
-    },
-    {
-        "id": 50,
-        "name": "Amit Chauhan",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "15 Jul 2026, 06:36 PM",
-        "timestamp": "2026-07-15T18:36:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya.",
-        "verified": True
-    },
-    {
-        "id": 82,
-        "name": "Kapil Dubey",
-        "location": "Faridabad Sector 15",
-        "rating": 5,
-        "date": "12 Jul 2026, 02:29 PM",
-        "timestamp": "2026-07-12T14:29:00",
-        "comment": "Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 56,
-        "name": "Ramesh Tiwari",
-        "location": "Karol Bagh",
-        "rating": 5,
-        "date": "11 Jul 2026, 05:00 PM",
-        "timestamp": "2026-07-11T17:00:00",
-        "comment": "Recommended by my neighbor in Karol. Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP.",
-        "verified": True
-    },
-    {
-        "id": 108,
-        "name": "Ramesh Verma",
-        "location": "Paschim Vihar",
-        "rating": 5,
-        "date": "07 Jul 2026, 10:49 AM",
-        "timestamp": "2026-07-07T10:49:00",
-        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
-        "verified": True
-    },
-    {
-        "id": 72,
-        "name": "Suresh Mishra",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "28 Jun 2026, 05:25 PM",
-        "timestamp": "2026-06-28T17:25:00",
-        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
-        "verified": True
-    },
-    {
-        "id": 13,
-        "name": "Manish Sethi",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "27 Jun 2026, 08:35 PM",
-        "timestamp": "2026-06-27T20:35:00",
-        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 134,
-        "name": "Pooja Jain",
-        "location": "Karol Bagh",
-        "rating": 5,
-        "date": "25 Jun 2026, 04:06 PM",
-        "timestamp": "2026-06-25T16:06:00",
-        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
-        "verified": True
-    },
-    {
-        "id": 80,
-        "name": "Ajay Yadav",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "02 Jun 2026, 06:19 PM",
-        "timestamp": "2026-06-02T18:19:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 25,
-        "name": "Rakesh Rawat",
-        "location": "Karol Bagh",
-        "rating": 5,
-        "date": "26 May 2026, 12:09 PM",
-        "timestamp": "2026-05-26T12:09:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 30,
-        "name": "Kunal Bansal",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "24 May 2026, 03:13 PM",
-        "timestamp": "2026-05-24T15:13:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
-        "verified": True
-    },
-    {
-        "id": 20,
-        "name": "Manish Dubey",
-        "location": "Malviya Nagar",
-        "rating": 5,
-        "date": "13 May 2026, 10:24 AM",
-        "timestamp": "2026-05-13T10:24:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya.",
-        "verified": True
-    },
-    {
-        "id": 64,
-        "name": "Sanjay Jain",
-        "location": "Janakpuri Block C",
-        "rating": 5,
-        "date": "29 Apr 2026, 05:09 PM",
-        "timestamp": "2026-04-29T17:09:00",
-        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 36,
-        "name": "Vinod Mehta",
-        "location": "Gurugram DLF Phase 3",
-        "rating": 5,
-        "date": "17 Apr 2026, 06:30 PM",
-        "timestamp": "2026-04-17T18:30:00",
-        "comment": "Recommended by my neighbor in Gurugram. Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
-        "verified": True
-    },
-    {
-        "id": 115,
-        "name": "Rohit Yadav",
-        "location": "Ghaziabad Indirapuram",
-        "rating": 5,
-        "date": "12 Apr 2026, 09:22 AM",
-        "timestamp": "2026-04-12T09:22:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 17,
-        "name": "Sanjay Bhatia",
-        "location": "Lajpat Nagar IV",
-        "rating": 5,
-        "date": "07 Apr 2026, 05:16 PM",
-        "timestamp": "2026-04-07T17:16:00",
-        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
-        "verified": True
-    },
-    {
-        "id": 91,
-        "name": "Deepak Dubey",
-        "location": "Noida Sector 18",
-        "rating": 5,
-        "date": "05 Apr 2026, 06:20 PM",
-        "timestamp": "2026-04-05T18:20:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 123,
-        "name": "Ankit Chauhan",
-        "location": "Connaught Place",
-        "rating": 5,
-        "date": "02 Apr 2026, 09:33 AM",
-        "timestamp": "2026-04-02T09:33:00",
-        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
-        "verified": True
-    },
-    {
-        "id": 33,
-        "name": "Suresh Singhal",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "31 Mar 2026, 12:37 PM",
-        "timestamp": "2026-03-31T12:37:00",
-        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
-        "verified": True
-    },
-    {
-        "id": 79,
-        "name": "Ajay Singhal",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "31 Mar 2026, 11:12 AM",
-        "timestamp": "2026-03-31T11:12:00",
-        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 41,
-        "name": "Naveen Chawla",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "27 Mar 2026, 10:03 AM",
-        "timestamp": "2026-03-27T10:03:00",
-        "comment": "Recommended by my neighbor in Pitampura. Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
-        "verified": True
-    },
-    {
-        "id": 100,
-        "name": "Rohit Mishra",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "15 Mar 2026, 08:47 PM",
-        "timestamp": "2026-03-15T20:47:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 12,
-        "name": "Suresh Chauhan",
-        "location": "Rajouri Garden",
-        "rating": 5,
-        "date": "10 Mar 2026, 08:15 PM",
-        "timestamp": "2026-03-10T20:15:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 26,
-        "name": "Harish Mishra",
-        "location": "Saket Block J",
-        "rating": 5,
-        "date": "07 Mar 2026, 09:38 AM",
-        "timestamp": "2026-03-07T09:38:00",
-        "comment": "Recommended by my neighbor in Saket. Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
-        "verified": True
-    },
-    {
-        "id": 131,
-        "name": "Satish Bhatia",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "01 Mar 2026, 06:18 PM",
-        "timestamp": "2026-03-01T18:18:00",
-        "comment": "Recommended by my neighbor in Shalimar. Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
-        "verified": True
-    },
-    {
-        "id": 84,
-        "name": "Manish Yadav",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "19 Feb 2026, 07:40 PM",
-        "timestamp": "2026-02-19T19:40:00",
-        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
-        "verified": True
-    },
-    {
-        "id": 83,
-        "name": "Sumit Sethi",
-        "location": "Malviya Nagar",
-        "rating": 5,
-        "date": "15 Feb 2026, 04:50 PM",
-        "timestamp": "2026-02-15T16:50:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 54,
-        "name": "Rakesh Gupta",
-        "location": "Gurugram DLF Phase 3",
-        "rating": 5,
-        "date": "10 Feb 2026, 01:08 PM",
-        "timestamp": "2026-02-10T13:08:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 47,
-        "name": "Pooja Verma",
-        "location": "Faridabad Sector 15",
-        "rating": 5,
-        "date": "06 Feb 2026, 05:10 PM",
-        "timestamp": "2026-02-06T17:10:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
-        "verified": True
-    },
-    {
-        "id": 24,
-        "name": "Manish Sethi",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "04 Feb 2026, 11:32 AM",
-        "timestamp": "2026-02-04T11:32:00",
-        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
-        "verified": True
-    },
-    {
-        "id": 124,
-        "name": "Praveen Gupta",
-        "location": "Mayur Vihar Phase 1",
-        "rating": 5,
-        "date": "23 Jan 2026, 05:48 PM",
-        "timestamp": "2026-01-23T17:48:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 101,
-        "name": "Ramesh Dubey",
-        "location": "Ghaziabad Indirapuram",
-        "rating": 5,
-        "date": "22 Jan 2026, 12:17 PM",
-        "timestamp": "2026-01-22T12:17:00",
-        "comment": "Recommended by my neighbor in Ghaziabad. Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
-        "verified": True
-    },
-    {
-        "id": 94,
-        "name": "Ankit Mishra",
-        "location": "Kalkaji",
-        "rating": 5,
-        "date": "19 Jan 2026, 07:15 PM",
-        "timestamp": "2026-01-19T19:15:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 119,
-        "name": "Ankit Chauhan",
-        "location": "Tilak Nagar",
-        "rating": 5,
-        "date": "18 Jan 2026, 04:27 PM",
-        "timestamp": "2026-01-18T16:27:00",
-        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
-        "verified": True
-    },
-    {
-        "id": 135,
-        "name": "Rajesh Saxena",
-        "location": "Karol Bagh",
-        "rating": 5,
-        "date": "13 Jan 2026, 04:21 PM",
-        "timestamp": "2026-01-13T16:21:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
-        "verified": True
-    },
-    {
-        "id": 99,
-        "name": "Vikram Mishra",
-        "location": "Faridabad Sector 15",
-        "rating": 4,
-        "date": "11 Jan 2026, 09:22 AM",
-        "timestamp": "2026-01-11T09:22:00",
-        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
-        "verified": True
-    },
-    {
-        "id": 107,
-        "name": "Ajay Bhatia",
-        "location": "Shahdara",
-        "rating": 5,
-        "date": "04 Jan 2026, 09:47 AM",
-        "timestamp": "2026-01-04T09:47:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
-        "verified": True
-    },
-    {
-        "id": 38,
-        "name": "Kapil Goyal",
-        "location": "Noida Sector 62",
-        "rating": 5,
-        "date": "01 Jan 2026, 08:03 PM",
-        "timestamp": "2026-01-01T20:03:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya.",
-        "verified": True
-    },
-    {
-        "id": 125,
-        "name": "Neha Tiwari",
-        "location": "Greater Noida West",
-        "rating": 5,
-        "date": "12 Dec 2025, 09:05 AM",
-        "timestamp": "2025-12-12T09:05:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
-        "verified": True
-    },
-    {
-        "id": 62,
-        "name": "Deepak Rawat",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "06 Dec 2025, 05:45 PM",
-        "timestamp": "2025-12-06T17:45:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 74,
-        "name": "Priya Verma",
-        "location": "Dwarka Sector 12",
-        "rating": 5,
-        "date": "28 Nov 2025, 02:46 PM",
-        "timestamp": "2025-11-28T14:46:00",
-        "comment": "Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP.",
-        "verified": True
-    },
-    {
-        "id": 92,
-        "name": "Sumit Chauhan",
-        "location": "Shahdara",
-        "rating": 5,
-        "date": "20 Nov 2025, 05:28 PM",
-        "timestamp": "2025-11-20T17:28:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
-        "verified": True
-    },
-    {
-        "id": 89,
-        "name": "Rajesh Mishra",
-        "location": "Kalkaji",
-        "rating": 5,
-        "date": "19 Nov 2025, 12:11 PM",
-        "timestamp": "2025-11-19T12:11:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
-        "verified": True
-    },
-    {
-        "id": 40,
-        "name": "Praveen Jain",
-        "location": "Noida Sector 18",
-        "rating": 5,
-        "date": "16 Nov 2025, 11:17 AM",
-        "timestamp": "2025-11-16T11:17:00",
-        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 4,
-        "name": "Vikram Jain",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 5,
-        "date": "13 Nov 2025, 12:28 PM",
-        "timestamp": "2025-11-13T12:28:00",
-        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 97,
-        "name": "Sanjay Tiwari",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 5,
-        "date": "08 Nov 2025, 03:21 PM",
-        "timestamp": "2025-11-08T15:21:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 71,
-        "name": "Kavita Chawla",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "23 Oct 2025, 02:17 PM",
-        "timestamp": "2025-10-23T14:17:00",
-        "comment": "Recommended by my neighbor in Rohini. Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 113,
-        "name": "Vikram Khanna",
-        "location": "Faridabad Sector 15",
-        "rating": 4,
-        "date": "21 Oct 2025, 08:12 PM",
-        "timestamp": "2025-10-21T20:12:00",
-        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
-        "verified": True
-    },
-    {
-        "id": 16,
-        "name": "Sachin Mehta",
-        "location": "Rajouri Garden",
-        "rating": 5,
-        "date": "20 Oct 2025, 07:29 PM",
-        "timestamp": "2025-10-20T19:29:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 69,
-        "name": "Neha Bhatia",
-        "location": "Saket Block J",
-        "rating": 5,
-        "date": "06 Oct 2025, 09:54 AM",
-        "timestamp": "2025-10-06T09:54:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
-        "verified": True
-    },
-    {
-        "id": 10,
-        "name": "Gaurav Gupta",
-        "location": "Mayur Vihar Phase 1",
-        "rating": 5,
-        "date": "04 Oct 2025, 01:29 PM",
-        "timestamp": "2025-10-04T13:29:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 111,
-        "name": "Ashok Sethi",
-        "location": "Connaught Place",
-        "rating": 5,
-        "date": "22 Sep 2025, 11:38 AM",
-        "timestamp": "2025-09-22T11:38:00",
-        "comment": "Recommended by my neighbor in Connaught. ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
-        "verified": True
-    },
-    {
-        "id": 65,
-        "name": "Kapil Kapoor",
-        "location": "Janakpuri Block C",
-        "rating": 5,
-        "date": "18 Sep 2025, 09:57 AM",
-        "timestamp": "2025-09-18T09:57:00",
-        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
-        "verified": True
-    },
-    {
-        "id": 77,
-        "name": "Ramesh Yadav",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "17 Sep 2025, 03:04 PM",
-        "timestamp": "2025-09-17T15:04:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 27,
-        "name": "Sachin Mittal",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "16 Sep 2025, 01:15 PM",
-        "timestamp": "2025-09-16T13:15:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
-        "verified": True
-    },
-    {
-        "id": 122,
-        "name": "Sachin Bansal",
-        "location": "Greater Noida West",
-        "rating": 5,
-        "date": "08 Sep 2025, 01:21 PM",
-        "timestamp": "2025-09-08T13:21:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 70,
-        "name": "Satish Chawla",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 5,
-        "date": "03 Sep 2025, 01:52 PM",
-        "timestamp": "2025-09-03T13:52:00",
-        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 127,
-        "name": "Harish Mittal",
-        "location": "Gurugram DLF Phase 3",
-        "rating": 5,
-        "date": "28 Aug 2025, 03:47 PM",
-        "timestamp": "2025-08-28T15:47:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 106,
-        "name": "Sachin Mehta",
-        "location": "Noida Sector 18",
-        "rating": 5,
-        "date": "21 Aug 2025, 03:17 PM",
-        "timestamp": "2025-08-21T15:17:00",
-        "comment": "Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 102,
-        "name": "Kapil Mittal",
-        "location": "Rohini Sector 9",
-        "rating": 4,
-        "date": "20 Aug 2025, 07:43 PM",
-        "timestamp": "2025-08-20T19:43:00",
-        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
-        "verified": True
-    },
-    {
-        "id": 121,
-        "name": "Naveen Saxena",
-        "location": "Ghaziabad Indirapuram",
-        "rating": 4,
-        "date": "20 Aug 2025, 09:31 AM",
-        "timestamp": "2025-08-20T09:31:00",
-        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 68,
-        "name": "Vikas Chopra",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "16 Aug 2025, 03:51 PM",
-        "timestamp": "2025-08-16T15:51:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 129,
-        "name": "Kavita Malhotra",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "30 Jul 2025, 10:47 AM",
-        "timestamp": "2025-07-30T10:47:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 31,
-        "name": "Ramesh Mishra",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "26 Jul 2025, 03:42 PM",
-        "timestamp": "2025-07-26T15:42:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 112,
-        "name": "Anil Mishra",
-        "location": "Shahdara",
-        "rating": 5,
-        "date": "25 Jul 2025, 10:37 AM",
-        "timestamp": "2025-07-25T10:37:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 126,
-        "name": "Gaurav Chawla",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "20 Jul 2025, 07:37 PM",
-        "timestamp": "2025-07-20T19:37:00",
-        "comment": "Recommended by my neighbor in South. Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
-        "verified": True
-    },
-    {
-        "id": 81,
-        "name": "Manoj Jain",
-        "location": "Shahdara",
-        "rating": 5,
-        "date": "18 Jul 2025, 01:13 PM",
-        "timestamp": "2025-07-18T13:13:00",
-        "comment": "Recommended by my neighbor in Shahdara. Hikvision 4 camera setup lagwaya tha shop ke liye. Night vision bohot clear hai aur wiring bilkul conceal karke ki. Ek saal ho gaya, zero issue.",
-        "verified": True
-    },
-    {
-        "id": 78,
-        "name": "Mohit Chauhan",
-        "location": "Punjabi Bagh West",
-        "rating": 5,
-        "date": "14 Jul 2025, 05:19 PM",
-        "timestamp": "2025-07-14T17:19:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
-        "verified": True
-    },
-    {
-        "id": 44,
-        "name": "Rajesh Aggarwal",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "29 Jun 2025, 03:44 PM",
-        "timestamp": "2025-06-29T15:44:00",
-        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
-        "verified": True
-    },
-    {
-        "id": 55,
-        "name": "Tarun Gupta",
-        "location": "Mayur Vihar Phase 1",
-        "rating": 5,
-        "date": "28 Jun 2025, 11:28 AM",
-        "timestamp": "2025-06-28T11:28:00",
-        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 120,
-        "name": "Ankit Singhal",
-        "location": "Mayur Vihar Phase 1",
-        "rating": 5,
-        "date": "22 Jun 2025, 04:15 PM",
-        "timestamp": "2025-06-22T16:15:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
-        "verified": True
-    },
-    {
-        "id": 58,
-        "name": "Rakesh Pandey",
-        "location": "Gurugram DLF Phase 3",
-        "rating": 5,
-        "date": "15 Jun 2025, 01:38 PM",
-        "timestamp": "2025-06-15T13:38:00",
-        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 128,
-        "name": "Kunal Singhal",
-        "location": "Paschim Vihar",
-        "rating": 5,
-        "date": "14 Jun 2025, 01:16 PM",
-        "timestamp": "2025-06-14T13:16:00",
-        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
-        "verified": True
-    },
-    {
-        "id": 7,
-        "name": "Rakesh Goyal",
-        "location": "Paschim Vihar",
-        "rating": 5,
-        "date": "07 Jun 2025, 09:46 AM",
-        "timestamp": "2025-06-07T09:46:00",
-        "comment": "Prompt quotation and genuine bill with GST. Professional commercial CCTV work done for our CA office in CP. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 73,
-        "name": "Ramesh Singhal",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "04 Jun 2025, 11:37 AM",
-        "timestamp": "2025-06-04T11:37:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service! Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 93,
-        "name": "Manish Pandey",
-        "location": "Greater Noida West",
-        "rating": 5,
-        "date": "02 Jun 2025, 12:53 PM",
-        "timestamp": "2025-06-02T12:53:00",
-        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
-        "verified": True
-    },
-    {
-        "id": 21,
-        "name": "Dinesh Chauhan",
-        "location": "Noida Sector 18",
-        "rating": 5,
-        "date": "25 May 2025, 05:55 PM",
-        "timestamp": "2025-05-25T17:55:00",
-        "comment": "Recommended by my neighbor in Noida. Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
-        "verified": True
-    },
-    {
-        "id": 90,
-        "name": "Mukesh Sethi",
-        "location": "Janakpuri Block C",
-        "rating": 5,
-        "date": "23 May 2025, 10:29 AM",
-        "timestamp": "2025-05-23T10:29:00",
-        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
-        "verified": True
-    },
-    {
-        "id": 49,
-        "name": "Neha Aggarwal",
-        "location": "Dwarka Sector 12",
-        "rating": 5,
-        "date": "20 May 2025, 06:38 PM",
-        "timestamp": "2025-05-20T18:38:00",
-        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 86,
-        "name": "Praveen Kapoor",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "18 May 2025, 04:39 PM",
-        "timestamp": "2025-05-18T16:39:00",
-        "comment": "Recommended by my neighbor in Rohini. Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya.",
-        "verified": True
-    },
-    {
-        "id": 1,
-        "name": "Anil Sharma",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "18 May 2025, 12:08 PM",
-        "timestamp": "2025-05-18T12:08:00",
-        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 35,
-        "name": "Amit Singhal",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "11 May 2025, 01:42 PM",
-        "timestamp": "2025-05-11T13:42:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
-        "verified": True
-    },
-    {
-        "id": 67,
-        "name": "Kunal Chopra",
-        "location": "Ghaziabad Indirapuram",
-        "rating": 5,
-        "date": "10 May 2025, 11:51 AM",
-        "timestamp": "2025-05-10T11:51:00",
-        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 42,
-        "name": "Ramesh Kohli",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "10 May 2025, 11:26 AM",
-        "timestamp": "2025-05-10T11:26:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
-        "verified": True
-    },
-    {
-        "id": 95,
-        "name": "Ankit Sethi",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "08 May 2025, 01:21 PM",
-        "timestamp": "2025-05-08T13:21:00",
-        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
-        "verified": True
-    },
-    {
-        "id": 3,
-        "name": "Amit Sharma",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "06 May 2025, 05:38 PM",
-        "timestamp": "2025-05-06T17:38:00",
-        "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.",
-        "verified": True
-    },
-    {
-        "id": 34,
-        "name": "Kavita Sharma",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "02 May 2025, 10:57 AM",
-        "timestamp": "2025-05-02T10:57:00",
-        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 14,
-        "name": "Kavita Yadav",
-        "location": "Punjabi Bagh West",
-        "rating": 5,
-        "date": "02 May 2025, 09:51 AM",
-        "timestamp": "2025-05-02T09:51:00",
-        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya.",
-        "verified": True
-    },
-    {
-        "id": 132,
-        "name": "Rakesh Kohli",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 5,
-        "date": "30 Apr 2025, 02:11 PM",
-        "timestamp": "2025-04-30T14:11:00",
-        "comment": "Quick service in Janakpuri. Sham ko 5 baje call kiya tha, agle din subah 11 baje site survey karke 2 baje tak fit kar diya.",
-        "verified": True
-    },
-    {
-        "id": 18,
-        "name": "Kapil Saxena",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "22 Apr 2025, 11:32 AM",
-        "timestamp": "2025-04-22T11:32:00",
-        "comment": "Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
-        "verified": True
-    },
-    {
-        "id": 15,
-        "name": "Sachin Aggarwal",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "14 Apr 2025, 06:56 PM",
-        "timestamp": "2025-04-14T18:56:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
-        "verified": True
-    },
-    {
-        "id": 11,
-        "name": "Harish Bansal",
-        "location": "Paschim Vihar",
-        "rating": 5,
-        "date": "12 Apr 2025, 07:17 PM",
-        "timestamp": "2025-04-12T19:17:00",
-        "comment": "Recommended by my neighbor in Paschim. Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
-        "verified": True
-    },
-    {
-        "id": 98,
-        "name": "Ramesh Sethi",
-        "location": "Noida Sector 62",
-        "rating": 5,
-        "date": "09 Apr 2025, 03:24 PM",
-        "timestamp": "2025-04-09T15:24:00",
-        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya.",
-        "verified": True
-    },
-    {
-        "id": 109,
-        "name": "Amit Mishra",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "02 Apr 2025, 09:39 AM",
-        "timestamp": "2025-04-02T09:39:00",
-        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 87,
-        "name": "Suresh Sethi",
-        "location": "Noida Sector 62",
-        "rating": 5,
-        "date": "28 Mar 2025, 08:44 PM",
-        "timestamp": "2025-03-28T20:44:00",
-        "comment": "Dahua 5MP IP camera setup is crystal clear. Number plate easily read ho jati hai main gate par.",
-        "verified": True
-    },
-    {
-        "id": 130,
-        "name": "Ramesh Mishra",
-        "location": "Connaught Place",
-        "rating": 5,
-        "date": "25 Mar 2025, 12:47 PM",
-        "timestamp": "2025-03-25T12:47:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 37,
-        "name": "Neha Dubey",
-        "location": "Greater Noida West",
-        "rating": 5,
-        "date": "23 Mar 2025, 10:06 AM",
-        "timestamp": "2025-03-23T10:06:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 118,
-        "name": "Naveen Tiwari",
-        "location": "Lajpat Nagar IV",
-        "rating": 5,
-        "date": "09 Mar 2025, 08:33 PM",
-        "timestamp": "2025-03-09T20:33:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 45,
-        "name": "Kunal Yadav",
-        "location": "Connaught Place",
-        "rating": 5,
-        "date": "15 Feb 2025, 12:18 PM",
-        "timestamp": "2025-02-15T12:18:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
-        "verified": True
-    },
-    {
-        "id": 96,
-        "name": "Sachin Jain",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "11 Feb 2025, 12:24 PM",
-        "timestamp": "2025-02-11T12:24:00",
-        "comment": "Recommended by my neighbor in Pitampura. Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
-        "verified": True
-    },
-    {
-        "id": 88,
-        "name": "Dinesh Mittal",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "08 Feb 2025, 07:44 PM",
-        "timestamp": "2025-02-08T19:44:00",
-        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 57,
-        "name": "Kunal Khanna",
-        "location": "Malviya Nagar",
-        "rating": 5,
-        "date": "25 Jan 2025, 01:07 PM",
-        "timestamp": "2025-01-25T13:07:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
-        "verified": True
-    },
-    {
-        "id": 29,
-        "name": "Suresh Mishra",
-        "location": "Gurugram DLF Phase 3",
-        "rating": 5,
-        "date": "19 Jan 2025, 07:30 PM",
-        "timestamp": "2025-01-19T19:30:00",
-        "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.",
-        "verified": True
-    },
-    {
-        "id": 103,
-        "name": "Manoj Pandey",
-        "location": "Saket Block J",
-        "rating": 5,
-        "date": "18 Jan 2025, 06:34 PM",
-        "timestamp": "2025-01-18T18:34:00",
-        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 133,
-        "name": "Rohit Sharma",
-        "location": "Connaught Place",
-        "rating": 5,
-        "date": "17 Jan 2025, 01:02 PM",
-        "timestamp": "2025-01-17T13:02:00",
-        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 32,
-        "name": "Harish Sethi",
-        "location": "Gurugram Sector 48",
-        "rating": 5,
-        "date": "11 Jan 2025, 12:14 PM",
-        "timestamp": "2025-01-11T12:14:00",
-        "comment": "Basement parking coverage ke liye zero blind spot plan banaya tha. Bahut hi detailed survey kiya tha engineer ne.",
-        "verified": True
-    },
-    {
-        "id": 75,
-        "name": "Sachin Chopra",
-        "location": "Ghaziabad Indirapuram",
-        "rating": 5,
-        "date": "06 Jan 2025, 03:57 PM",
-        "timestamp": "2025-01-06T15:57:00",
-        "comment": "Great experience with Hawkeye team. Technicians police verified the aur proper ID card ke sath aaye the.",
-        "verified": True
-    },
-    {
-        "id": 23,
-        "name": "Ankit Mishra",
-        "location": "Rajouri Garden",
-        "rating": 5,
-        "date": "02 Jan 2025, 01:27 PM",
-        "timestamp": "2025-01-02T13:27:00",
-        "comment": "Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya.",
-        "verified": True
-    },
-    {
-        "id": 19,
-        "name": "Vinod Gupta",
-        "location": "Kalkaji",
-        "rating": 5,
-        "date": "31 Dec 2024, 11:40 AM",
-        "timestamp": "2024-12-31T11:40:00",
-        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 39,
-        "name": "Rakesh Verma",
-        "location": "South Extension II",
-        "rating": 5,
-        "date": "30 Dec 2024, 12:12 PM",
-        "timestamp": "2024-12-30T12:12:00",
-        "comment": "Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya.",
-        "verified": True
-    },
-    {
-        "id": 117,
-        "name": "Mohit Sharma",
-        "location": "Noida Sector 62",
-        "rating": 5,
-        "date": "27 Dec 2024, 03:23 PM",
-        "timestamp": "2024-12-27T15:23:00",
-        "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.",
-        "verified": True
-    },
-    {
-        "id": 114,
-        "name": "Suresh Saxena",
-        "location": "Connaught Place",
-        "rating": 5,
-        "date": "23 Dec 2024, 08:49 PM",
-        "timestamp": "2024-12-23T20:49:00",
-        "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.",
-        "verified": True
-    },
-    {
-        "id": 6,
-        "name": "Ankit Kapoor",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 5,
-        "date": "23 Dec 2024, 10:24 AM",
-        "timestamp": "2024-12-23T10:24:00",
-        "comment": "Recommended by my neighbor in Vasant. Genuine brand products only with bill and company warranty. CP Plus app configure karke dono phones me login karwa diya.",
-        "verified": True
-    },
-    {
-        "id": 2,
-        "name": "Rakesh Yadav",
-        "location": "Shalimar Bagh",
-        "rating": 5,
-        "date": "08 Dec 2024, 06:27 PM",
-        "timestamp": "2024-12-08T18:27:00",
-        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai.",
-        "verified": True
-    },
-    {
-        "id": 28,
-        "name": "Pooja Chawla",
-        "location": "Faridabad Sector 15",
-        "rating": 5,
-        "date": "06 Dec 2024, 08:31 PM",
-        "timestamp": "2024-12-06T20:31:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 8,
-        "name": "Naveen Jain",
-        "location": "Dwarka Sector 12",
-        "rating": 4,
-        "date": "29 Nov 2024, 05:18 PM",
-        "timestamp": "2024-11-28T17:18:00",
-        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya.",
-        "verified": True
-    },
-    {
-        "id": 63,
-        "name": "Kapil Jain",
-        "location": "Rohini Sector 9",
-        "rating": 5,
-        "date": "26 Nov 2024, 08:57 PM",
-        "timestamp": "2024-11-26T20:57:00",
-        "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!",
-        "verified": True
-    },
-    {
-        "id": 48,
-        "name": "Pooja Arora",
-        "location": "Pitampura ED Block",
-        "rating": 5,
-        "date": "19 Nov 2024, 06:04 PM",
-        "timestamp": "2024-11-19T18:04:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 116,
-        "name": "Ramesh Chopra",
-        "location": "Malviya Nagar",
-        "rating": 5,
-        "date": "19 Nov 2024, 05:41 PM",
-        "timestamp": "2024-11-19T17:41:00",
-        "comment": "Recommended by my neighbor in Malviya. Best CCTV installers in Delhi NCR. Hamari grocery store chain ke 3 outlets par inhone hi installation kiya hai.",
-        "verified": True
-    },
-    {
-        "id": 46,
-        "name": "Ashok Verma",
-        "location": "Faridabad Sector 15",
-        "rating": 5,
-        "date": "11 Nov 2024, 08:20 PM",
-        "timestamp": "2024-11-11T20:20:00",
-        "comment": "Home automation aur CCTV ka integration karwaya villa me. Mobile alert system bahut fast kaam karta hai. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 43,
-        "name": "Vinod Mittal",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 4,
-        "date": "09 Nov 2024, 11:24 AM",
-        "timestamp": "2024-11-09T11:24:00",
-        "comment": "Support team is very responsive. Ek camera offline ho gaya tha router change karne par, phone pe step-by-step reconnect karwaya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 60,
-        "name": "Priya Arora",
-        "location": "Greater Noida West",
-        "rating": 5,
-        "date": "01 Nov 2024, 10:40 AM",
-        "timestamp": "2024-11-01T10:40:00",
-        "comment": "ColorVu camera quality is awesome. Raat ko bhi poora daylight jaisa color view dikhta hai lane ka. Safe feel hota hai.",
-        "verified": True
-    },
-    {
-        "id": 105,
-        "name": "Kapil Kapoor",
-        "location": "Noida Sector 18",
-        "rating": 5,
-        "date": "31 Oct 2024, 01:24 PM",
-        "timestamp": "2024-10-31T13:24:00",
-        "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.",
-        "verified": True
-    },
-    {
-        "id": 9,
-        "name": "Harish Saxena",
-        "location": "Vasant Kunj Pocket B",
-        "rating": 5,
-        "date": "26 Oct 2024, 07:14 PM",
-        "timestamp": "2024-10-26T19:14:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
-        "verified": True
-    },
-    {
-        "id": 53,
-        "name": "Naveen Singhal",
-        "location": "Kalkaji",
-        "rating": 5,
-        "date": "19 Sep 2024, 04:39 PM",
-        "timestamp": "2024-09-19T16:39:00",
-        "comment": "Society entrance aur basement ke liye 12 cameras ka quotation manga tha. Rate market se kafi genuine mila aur same-day delivery di.",
-        "verified": True
-    },
-    {
-        "id": 61,
-        "name": "Kapil Kohli",
-        "location": "Model Town III",
-        "rating": 5,
-        "date": "13 Sep 2024, 02:49 PM",
-        "timestamp": "2024-09-13T14:49:00",
-        "comment": "Dwarka wale flat me 3 IP cameras install karwaye. Mobile app par live feed ekdum smooth chalti hai. Er. Rahul ne poora setup patiently sikhaya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    },
-    {
-        "id": 76,
-        "name": "Praveen Bhatia",
-        "location": "Janakpuri Block C",
-        "rating": 5,
-        "date": "11 Sep 2024, 05:59 PM",
-        "timestamp": "2024-09-11T17:59:00",
-        "comment": "Affordable packages without any hidden charges. Jo quote portal par diya tha exactly wahi final amount liya. Truly satisfied with Hawkeye team.",
-        "verified": True
-    }
+    {"id": 5, "name": "Ankit Dubey", "location": "Rohini Sector 9", "rating": 5, "date": "25 Aug 2026, 03:21 PM", "comment": "Very professional team. Delhi me itni neat trunking wiring koi nahi karta. Ek bhi wire bahar latka hua nahi dikhta.", "verified": True},
+    {"id": 59, "name": "Ashok Tiwari", "location": "Punjabi Bagh West", "rating": 5, "date": "14 Aug 2026, 07:54 PM", "comment": "Annual Maintenance Contract (AMC) liya tha warehouse ke liye. Har 3 mahine me servicing aur camera lens cleaning timely hoti hai.", "verified": True},
+    {"id": 22, "name": "Rajesh Yadav", "location": "Shalimar Bagh", "rating": 5, "date": "09 Aug 2026, 05:48 PM", "comment": "Pichle hafte DVR me hard disk issue aaya tha, call log kiya portal par aur agle din engineer aakar replace kar gaya under warranty. Top service!", "verified": True},
+    {"id": 85, "name": "Mohit Gupta", "location": "Shahdara", "rating": 5, "date": "30 Jul 2026, 01:14 PM", "comment": "Biometric machine aur 2 CCTV cameras lagwaye. Quotation portal par turant mil gaya tha transparent pricing ke sath.", "verified": True},
+    {"id": 52, "name": "Neha Bhatia", "location": "South Extension II", "rating": 5, "date": "29 Jul 2026, 07:19 PM", "comment": "Office security ke liye CP Plus 8-channel NVR setup karwaya. Sound recording aur motion alert bohot acche se work kar raha hai.", "verified": True},
+    {"id": 110, "name": "Sanjay Chawla", "location": "Lajpat Nagar IV", "rating": 5, "date": "27 Jul 2026, 10:36 AM", "comment": "Pichle 1.5 saal se inka AMC plan chal raha hai hamari housing society me. Cameras 24x7 running bina kisi rukawat ke.", "verified": True}
 ]
 
 def get_persisted_admin_hash():
@@ -1535,18 +174,12 @@ with app.app_context():
         db.session.commit()
 
 def calculate_quote(cameras, brand="Hawkeye", storage=15):
-    if cameras == 4:
-        return 18499
-    elif cameras == 6:
-        return 25000
-    elif cameras == 8:
-        return 32000
-    elif cameras == 2:
-        return 11500
-    elif cameras == 16:
-        return 62000
-    else:
-        return 18499 + max(0, cameras - 4) * 3375
+    if cameras == 4: return 18499
+    elif cameras == 6: return 25000
+    elif cameras == 8: return 32000
+    elif cameras == 2: return 11500
+    elif cameras == 16: return 62000
+    else: return 18499 + max(0, cameras - 4) * 3375
 
 LOGO_SVG = """
 <div class="brand-badge-container">
@@ -1713,7 +346,7 @@ STYLES = """
     .pack-price span { font-size: 0.9rem; color: var(--text-muted); font-weight: 400; }
     .pack-features { list-style: none; margin: 1.5rem 0; font-size: 0.9rem; color: #334155; }
     .pack-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
-    .pack-features li::before { content: "OK"; color: var(--success); font-weight: bold; }
+    .pack-features li::before { content: "✓"; color: var(--success); font-weight: bold; }
 
     .calc-container { max-width: 1100px; margin: auto; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 2.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.03); }
     .calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
@@ -1785,6 +418,7 @@ STYLES = """
     }
 </style>
 """
+
 # =========================== PAGE TEMPLATES ===========================
 
 LANDING_PAGE = f"""
@@ -1795,7 +429,7 @@ LANDING_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Hawkeye Security &amp; Automation | Complete CCTV Solutions Delhi NCR</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
     <div class="top-strip">
@@ -1807,7 +441,7 @@ LANDING_PAGE = f"""
         </div>
     </div>
 
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <section class="hero">
         <div class="hero-wrap">
@@ -1832,40 +466,38 @@ LANDING_PAGE = f"""
                 </div>
             </div>
 
-           <div class="hero-form-box" id="get-quote">
+            <div class="hero-form-box" id="get-quote">
                 <h3>Request Instant Survey</h3>
                 <p class="sub">Official quotation will sync directly to your customer account</p>
                 <form action="/quick-book" method="POST">
-    <div class="form-group">
-        <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
-        <input type="text" name="name" placeholder="Enter your name" required>
-    </div>
-    <div class="form-group">
-        <label>Email Address <span style="color:#ef4444; font-weight:bold;">*</span></label>
-        <input type="email" name="email" placeholder="name@example.com" required>
-    </div>
-    <div class="form-group">
-        <label>Mobile Number <span style="color:#ef4444; font-weight:bold;">*</span></label>
-        <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
-    </div>
-    <div class="form-group">
-        <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
-        <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
-    </div>
-    <div class="form-group">
-        <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
-        <select name="service_type" required>
-            <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
-            <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
-            <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
-            <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
-        </select>
-    </div>
-    <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
-</form>
-</div>
-                
-                </div>
+                    <div class="form-group">
+                        <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="text" name="name" placeholder="Enter your name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="email" name="email" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mobile Number <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <select name="service_type" required>
+                            <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
+                            <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
+                            <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
+                            <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
+                </form>
+            </div>
         </div>
     </section>
 
@@ -1881,8 +513,8 @@ LANDING_PAGE = f"""
                 <div>
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.8rem;">
                         <div>
-                            <div class="reviewer-name">{{{{ r.name }}}}</div>
-                            <div class="reviewer-loc">📍 {{{{ r.location }}}}</div>
+                            <div class="reviewer-name">{{{{ r.name }}}</div>
+                            <div class="reviewer-loc">📍 {{{{ r.location }}}</div>
                         </div>
                         <div class="review-stars">
                             {{% for i in range(r.rating) %}}★{{% endfor %}}
@@ -1891,7 +523,7 @@ LANDING_PAGE = f"""
                     <p style="font-size:0.9rem; color:#334155;">"{{{{ r.comment }}}}"</p>
                 </div>
                 <div class="review-date">
-                    <span>🗓️ {{{{ r.date }}}}</span>
+                    <span>🗓️ {{{{ r.date }}}</span>
                     <span class="verified-chip">Verified Customer</span>
                 </div>
             </div>
@@ -1905,7 +537,7 @@ LANDING_PAGE = f"""
         </div>
     </section>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
@@ -1918,10 +550,10 @@ SERVICES_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Services | Hawkeye Security &amp; Automation</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="section-wrap">
         <div class="sec-title">
@@ -1967,7 +599,7 @@ SERVICES_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
@@ -1980,10 +612,10 @@ PACKAGES_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>CCTV Packages | Hawkeye Security</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="section-wrap">
         <div class="sec-title">
@@ -2046,7 +678,7 @@ PACKAGES_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
@@ -2059,10 +691,10 @@ CALCULATOR_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Surveillance Cost Estimator | HAWKEYE CCTV AND AUTOMATION</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="section-wrap">
         <div class="sec-title">
@@ -2118,7 +750,7 @@ CALCULATOR_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 
     <script>
         const hawkeyePackages = {{
@@ -2165,10 +797,10 @@ REVIEWS_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Customer Testimonials | Hawkeye Security</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="section-wrap">
         <div class="sec-title">
@@ -2182,8 +814,8 @@ REVIEWS_PAGE = f"""
                 <div>
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.8rem;">
                         <div>
-                            <div class="reviewer-name">{{{{ r.name }}}}</div>
-                            <div class="reviewer-loc">📍 {{{{ r.location }}}}</div>
+                            <div class="reviewer-name">{{{{ r.name }}}</div>
+                            <div class="reviewer-loc">📍 {{{{ r.location }}}</div>
                         </div>
                         <div class="review-stars">
                             {{% for i in range(r.rating) %}}★{{% endfor %}}
@@ -2192,7 +824,7 @@ REVIEWS_PAGE = f"""
                     <p style="font-size:0.9rem; color:#334155;">"{{{{ r.comment }}}}"</p>
                 </div>
                 <div class="review-date">
-                    <span>🗓️ {{{{ r.date }}}}</span>
+                    <span>🗓️ {{{{ r.date }}}</span>
                     <span class="verified-chip">Verified Installation</span>
                 </div>
             </div>
@@ -2200,7 +832,7 @@ REVIEWS_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
@@ -2213,10 +845,10 @@ CAREERS_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Careers &amp; Opportunities | Hawkeye Security</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="section-wrap">
         <div class="sec-title">
@@ -2299,7 +931,7 @@ CAREERS_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
@@ -2312,20 +944,20 @@ PORTAL_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Customer Security Dashboard | Hawkeye</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="portal-container">
         <div class="portal-header">
             <div>
                 <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; color:#64748b; font-weight:700;">Client Dashboard</div>
-                <h2 style="color:var(--primary); font-size:1.6rem;">Welcome, {{{{ user.name }}}}</h2>
+                <h2 style="color:var(--primary); font-size:1.6rem;">Welcome, {{{{ user.name }}}</h2>
                 <div style="color:var(--text-muted); font-size:0.9rem; margin-top:0.2rem;">
-                    <span>📱 +91 {{{{ user.phone }}}}</span> | 
-                    <span>📍 {{{{ user.area }}}}</span> | 
-                    <span>🛡️ Customer ID: #HWK-{{{{ user.id + 1040 }}}}</span>
+                    <span>📱 +91 {{{{ user.phone }}}</span> | 
+                    <span>📍 {{{{ user.area }}}</span> | 
+                    <span>🛡️ Customer ID: #HWK-{{{{ user.id + 1040 }}}</span>
                 </div>
             </div>
             <div class="portal-actions">
@@ -2346,14 +978,14 @@ PORTAL_PAGE = f"""
                         {{% for q in user.quotations %}}
                         <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1.2rem; margin-bottom:1rem; background:#fcfcfd;">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <strong style="font-size:1.1rem; color:var(--primary);">{{{{ q.service_type }}}} ({{{{ q.cameras }}}} Cameras)</strong>
-                                <span class="badge-status status-active">{{{{ q.status }}}}</span>
+                                <strong style="font-size:1.1rem; color:var(--primary);">{{{{ q.service_type }}} ({{{{ q.cameras }}} Cameras)</strong>
+                                <span class="badge-status status-active">{{{{ q.status }}}</span>
                             </div>
                             <div style="font-size:0.88rem; color:#475569; margin:0.6rem 0;">
-                                Property: <strong>{{{{ q.property_type }}}}</strong> | Brand: <strong>{{{{ q.brand_preference }}}}</strong> | Backup: <strong>{{{{ q.storage_days }}}} Days</strong>
+                                Property: <strong>{{{{ q.property_type }}}</strong> | Brand: <strong>{{{{ q.brand_preference }}}</strong> | Backup: <strong>{{{{ q.storage_days }}} Days</strong>
                             </div>
                             <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #cbd5e1; padding-top:0.6rem; margin-top:0.6rem;">
-                                <div>Total Estimated Amount: <strong style="color:var(--secondary); font-size:1.2rem;">₹{{{{ q.estimated_amount }}}}</strong> (Inc. GST &amp; Fitting)</div>
+                                <div>Total Estimated Amount: <strong style="color:var(--secondary); font-size:1.2rem;">₹{{{{ q.estimated_amount }}}</strong> (Inc. GST &amp; Fitting)</div>
                                 <a href="https://wa.me/919971332864?text=Hi%20Hawkeye,%20I%20wish%20to%20confirm%20Quotation%20No%20{{{{ q.id }}}}" target="_blank" style="background:var(--success); color:white; padding:6px 14px; border-radius:4px; font-size:0.85rem; font-weight:bold;">Confirm via WhatsApp 💬</a>
                             </div>
                         </div>
@@ -2373,13 +1005,13 @@ PORTAL_PAGE = f"""
                         {{% for t in user.tickets %}}
                         <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1.2rem; margin-bottom:1rem;">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <strong>Ticket #{{{{ t.ticket_id }}}}: {{{{ t.issue_type }}}}</strong>
-                                <span class="badge-status status-assigned">{{{{ t.status }}}}</span>
+                                <strong>Ticket #{{{{ t.ticket_id }}}}: {{{{ t.issue_type }}}</strong>
+                                <span class="badge-status status-assigned">{{{{ t.status }}}</span>
                             </div>
                             <p style="font-size:0.85rem; color:#64748b; margin:0.5rem 0;">"{{{{ t.description }}}}"</p>
                             <div style="font-size:0.82rem; background:#f1f5f9; padding:0.6rem; border-radius:4px; display:flex; justify-content:space-between;">
-                                <span>👷 Assigned Technician: <strong>{{{{ t.assigned_engineer }}}}</strong></span>
-                                <span>Scheduled Window: <strong>{{{{ t.preferred_slot }}}}</strong></span>
+                                <span>👷 Assigned Technician: <strong>{{{{ t.assigned_engineer }}}</strong></span>
+                                <span>Scheduled Window: <strong>{{{{ t.preferred_slot }}}</strong></span>
                             </div>
                         </div>
                         {{% endfor %}}
@@ -2499,7 +1131,7 @@ PORTAL_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 
     <script>
         function openModal(id) {{ document.getElementById(id).style.display = 'flex'; }}
@@ -2517,10 +1149,10 @@ AUTH_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Client Portal Access | Hawkeye Security</title>
-    {{{{ styles | safe }}}}
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
     <div class="auth-wrap" style="max-width:440px; margin:4.5rem auto; background:white; padding:2.5rem; border-radius:12px; box-shadow:0 15px 35px rgba(0,0,0,0.08); text-align:center;">
         <span class="auth-badge" style="background:#e0f2fe; color:#0369a1; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:bold;">🛡️ Instant Access</span>
@@ -2540,11 +1172,13 @@ AUTH_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
+
 # =========================== ROUTING CONTROLLERS ===========================
+
 @app.route('/')
 def index():
     reviews = CUSTOMER_REVIEWS[:6]
@@ -2555,6 +1189,7 @@ def index():
         reviews=reviews,
         footer=FOOTER_SECTION
     )
+
 @app.route('/login')
 def login():
     if session.get('user_id'):
@@ -2565,6 +1200,36 @@ def login():
         navbar=render_template_string(NAV_BAR),
         footer=FOOTER_SECTION
     )
+
+@app.route('/client-login', methods=['POST'])
+def client_login():
+    raw_id = request.form.get('identifier', '').strip()
+    clean_digits = re.sub(r'\D', '', raw_id)
+    
+    user = None
+    if len(clean_digits) == 10:
+        user = User.query.filter_by(phone=clean_digits).first()
+    
+    if not user:
+        user = User.query.filter_by(email=raw_id.lower()).first()
+
+    if not user:
+        if len(clean_digits) == 10:
+            user = User(name=f"Customer {clean_digits[-4:]}", phone=clean_digits, email=None, area="Delhi NCR")
+        elif "@" in raw_id:
+            temp_phone = f"99{secrets.randbelow(89999999) + 10000000}"
+            user = User(name=raw_id.split('@')[0].capitalize(), phone=temp_phone, email=raw_id.lower(), area="Delhi NCR")
+        else:
+            return "<script>alert('Please enter a valid 10-digit Indian mobile number or Email address.'); window.history.back();</script>"
+        
+        db.session.add(user)
+        db.session.commit()
+
+    send_whatsapp_alert(user.name, user.phone, user.area, f"CLIENT PORTAL LOGIN: {raw_id}", 0)
+
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
 
 @app.route('/quick-book', methods=['POST'])
 def quick_book():
@@ -2619,8 +1284,155 @@ def quick_book():
     session['user_id'] = user.id
     session['user_name'] = user.name
     return redirect(url_for('portal'))
-  
-# =========================== OWNER ADMIN CONSOLE & EXPORT ===========================
+
+@app.route('/portal')
+def portal():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+    user = User.query.get(user_id)
+    return render_template_string(
+        PORTAL_PAGE,
+        user=user,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/create-quote', methods=['POST'])
+def create_quote():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    user = User.query.get(user_id)
+    cams = int(request.form.get('cameras'))
+    prop = request.form.get('property_type')
+    brand = request.form.get('brand')
+    storage = int(request.form.get('storage_days'))
+
+    cost = calculate_quote(cams, brand, storage)
+    q = Quotation(
+        user_id=user_id,
+        service_type=f"{brand} {cams}-Camera System",
+        property_type=prop,
+        cameras=cams,
+        brand_preference=brand,
+        storage_days=storage,
+        estimated_amount=cost,
+        status="Quotation Generated"
+    )
+    db.session.add(q)
+    db.session.commit()
+
+    send_whatsapp_alert(user.name, user.phone, user.area, f"{brand} {cams}-Camera System", cost)
+    return redirect(url_for('portal'))
+
+@app.route('/create-ticket', methods=['POST'])
+def create_ticket():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    user = User.query.get(user_id)
+    issue = request.form.get('issue_type')
+    desc = request.form.get('description')
+    slot = request.form.get('preferred_slot')
+
+    ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
+
+    ticket = MaintenanceTicket(
+        ticket_id=ticket_code,
+        user_id=user_id,
+        issue_type=issue,
+        description=desc,
+        preferred_slot=slot,
+        status="Technician Dispatched"
+    )
+    db.session.add(ticket)
+    db.session.commit()
+
+    send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
+    return redirect(url_for('portal'))
+
+@app.route('/services')
+def services():
+    return render_template_string(
+        SERVICES_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/packages')
+def packages():
+    return render_template_string(
+        PACKAGES_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/calculator')
+def calculator():
+    return render_template_string(
+        CALCULATOR_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/reviews')
+def reviews():
+    return render_template_string(
+        REVIEWS_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        all_reviews=CUSTOMER_REVIEWS,
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/careers', methods=['GET', 'POST'])
+def careers():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        phone = request.form.get('phone', '').strip()
+        email = request.form.get('email', '').strip()
+        position = request.form.get('position')
+        experience = request.form.get('experience')
+        
+        file = request.files.get('resume')
+        filename = None
+        if file and file.filename != '':
+            filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            
+        app_entry = JobApplication(
+            name=name,
+            phone=phone,
+            email=email,
+            position=position,
+            experience=experience,
+            resume_file=filename
+        )
+        db.session.add(app_entry)
+        db.session.commit()
+        
+        send_whatsapp_alert(name, phone, "Delhi NCR", f"JOB APPLICATION: {position} ({experience})", 0)
+        return "<script>alert('Application successfully submitted! Our HR team will contact you soon.'); window.location.href='/careers';</script>"
+
+    return render_template_string(
+        CAREERS_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/resumes/<filename>')
+def uploaded_resume(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+# =========================== ADMIN CONSOLE ===========================
 
 ADMIN_PAGE = """
 <!DOCTYPE html>
