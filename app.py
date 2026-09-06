@@ -2610,60 +2610,6 @@ def quick_book():
     session['user_name'] = user.name
     return redirect(url_for('portal'))
   
-@app.route('/quick-book', methods=['POST'])
-def quick_book():
-    name = request.form.get('name', '').strip()
-    phone = request.form.get('phone', '').strip()
-    email = request.form.get('email', '').strip().lower()
-    area = request.form.get('area', '').strip()
-    service_type = request.form.get('service_type')
-
-    clean_phone = re.sub(r'\D', '', phone)[-10:]
-    if len(clean_phone) != 10:
-        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
-
-    user = User.query.filter((User.phone == clean_phone) | (User.email == email)).first()
-    if not user:
-        user = User(
-            name=name,
-            phone=clean_phone,
-            email=email if email else None,
-            area=area
-        )
-        db.session.add(user)
-        db.session.commit()
-    else:
-        if name: user.name = name
-        if email: user.email = email
-        if area: user.area = area
-        db.session.commit()
-
-    cams = 4
-    if "6-Camera" in service_type: cams = 6
-    elif "8-Camera" in service_type: cams = 8
-    elif "16+" in service_type: cams = 16
-
-    est_cost = calculate_quote(cams, "Hawkeye", 15)
-
-    quote = Quotation(
-        user_id=user.id,
-        service_type=service_type,
-        property_type="Residential / Commercial",
-        cameras=cams,
-        brand_preference="CP Plus / Hikvision HD",
-        storage_days=15,
-        estimated_amount=est_cost,
-        status="Quotation Confirmed"
-    )
-    db.session.add(quote)
-    db.session.commit()
-
-    send_whatsapp_alert(name, clean_phone, area, f"CID: #HWK-{user.id + 1040} | {service_type}", est_cost)
-
-    session['user_id'] = user.id
-    session['user_name'] = user.name
-    return redirect(url_for('portal'))
-    
 # =========================== OWNER ADMIN CONSOLE & EXPORT ===========================
 
 ADMIN_PAGE = """
