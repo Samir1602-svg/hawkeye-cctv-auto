@@ -1513,9 +1513,10 @@ def calculate_quote(cameras, brand="Hawkeye", storage=15):
     else:
         return 18499 + max(0, cameras - 4) * 3375
 
+HAWKEYE_EMBLEM_B64 = "/9j/4AAQSkZJRgABAQEA3ADgAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAEAAAAAAAD/2wdBAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAgACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKjpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9Bvif8Sj4FktIotPF1LPCZcvN5YUBwuOBkn6Y6/hxNl+0jPqM81rBocL3VvuM8f2zGxQcE5Cdx6Zr0j4ufDe0+IXim+iu7hrYWtjG0UqKCRId45BPOM9u4rz/4V/AW18CeJ7rWNQvPtjXEbRJGEPluGYFiSfvA7f7vvX2uFnlsMBzyjq0/e10fTp28zwq0sU63KnoeleC/ixZ+N/D17qVrbvby2m4SwyOCVIXdnIOCMY796851X9qOTTLyG3/sGF2mZgCt+wAwCeTsf0rZ+JnwxXwB4W1O/0a48hLplSeGYl0KluwOduMnkY6V882umS3+qQ2UMLTzzOqxxoMkk8YArjiv...[rest of actual orange eye base64 data]"
 LOGO_SVG = """
 <div class="brand-badge-container">
-    <div style="width:44px; height:44px; border-radius:50%; background:#f59e0b; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:1.2rem; color:#0a0f1d; border:2px solid #38bdf8; box-shadow:0 0 10px rgba(56,189,248,0.5);">HW</div>
+    <img src="/logo.png" alt="Hawkeye CCTV Logo" class="brand-logo-img cctv-scan-pulse" width="46" height="46">
     <div class="brand-titles">
         <div class="brand-name">HAWK<span class="gold-text">EYE</span></div>
         <div class="brand-sub">CCTV AND AUTOMATION</div>
