@@ -2633,126 +2633,109 @@ AUTH_PAGE = f"""
 """
 
 # =========================== ROUTING CONTROLLERS ===========================
-@app.route('/send-otp', methods=['POST'])
-def send_otp():
-    email = request.form.get('email')
-    if not email:
-        return jsonify({"success": False, "message": "Email is required"}), 400
+@app.route('/login')
+def login():
+    if session.get('user_id'):
+        return redirect(url_for('portal'))
+    return render_template_string(
+        AUTH_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        footer=FOOTER_SECTION
+    )
+
+@app.route('/client-login', methods=['POST'])
+def client_login():
+    raw_id = request.form.get('identifier', '').strip()
+    clean_digits = re.sub(r'\D', '', raw_id)
     
-    otp = str(random.randint(100000, 999999))
-    session['verification_otp'] = otp
-    session['otp_email'] = email
+    # Phone ya Email kisi se bhi account search karein
+    user = None
+    if len(clean_digits) == 10:
+        user = User.query.filter_by(phone=clean_digits).first()
     
-    if send_email_otp(email, otp):
-        return jsonify({"success": True, "message": "OTP sent to your email."})
-    return jsonify({"success": False, "message": "Could not send OTP. Check Gmail configuration."}), 500
+    if not user:
+        user = User.query.filter_by(email=raw_id.lower()).first()
 
-@app.route('/verify-otp', methods=['POST'])
-def verify_otp():
-    user_otp = request.form.get('otp', '').strip()
-    stored_otp = session.get('verification_otp')
-    
-    if stored_otp and user_otp == stored_otp:
-        session['is_verified'] = True
-        session.pop('verification_otp', None)
-        return jsonify({"success": True, "message": "Verified successfully!"})
-    return jsonify({"success": False, "message": "Invalid OTP. Please try again."}), 400
-@app.route('/logo.png')
-def serve_root_logo():
-    from flask import send_from_directory
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'logo.png')
+    # Agar bilkul naya user hai toh auto-register karein
+    if not user:
+        if len(clean_digits) == 10:
+            user = User(name=f"Customer {clean_digits[-4:]}", phone=clean_digits, email=None, area="Delhi NCR")
+        elif "@" in raw_id:
+            temp_phone = f"99{secrets.randbelow(89999999) + 10000000}"
+            user = User(name=raw_id.split('@')[0].capitalize(), phone=temp_phone, email=raw_id.lower(), area="Delhi NCR")
+        else:
+            return "<script>alert('Please enter a valid 10-digit Indian mobile number or Email address.'); window.history.back();</script>"
+        
+        db.session.add(user)
+        db.session.commit()
 
-@app.route('/')
-def index():
-    return render_template_string(
-        LANDING_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION,
-        reviews=CUSTOMER_REVIEWS[:10]
+    # Owner alert ki customer ne login kiya
+    send_whatsapp_alert(user.name, user.phone, user.area, f"CLIENT PORTAL LOGIN: {raw_id}", 0)
+
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
+
+@app.route('/quick-book', methods=['POST'])
+def quick_book():
+    name = request.form.get('name', '').strip()
+    phone = request.form.get('phone', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    area = request.form.get('area', '').strip()
+    service_type = request.form.get('service_type')
+
+    clean_phone = re.sub(r'\D', '', phone)[-10:]
+    if len(clean_phone) != 10:
+        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
+
+    # Pehle phone ya email se check karein ki customer pehle se hai ya naya
+    user = User.query.filter((User.phone == clean_phone) | (User.email == email)).first()
+    if not user:
+        user = User(
+            name=name,
+            phone=clean_phone,
+            email=email if email else None,
+            area=area
+        )
+        db.session.add(user)
+        db.session.commit()
+    else:
+        # Existing user ka record update karein
+        if name: user.name = name
+        if email: user.email = email
+        if area: user.area = area
+        db.session.commit()
+
+    cams = 4
+    if "6-Camera" in service_type: cams = 6
+    elif "8-Camera" in service_type: cams = 8
+    elif "16+" in service_type: cams = 16
+
+    est_cost = calculate_quote(cams, "Hawkeye", 15)
+
+    # Quotation hamesha customer ki usi permanent Unique ID ke sath judegi
+    quote = Quotation(
+        user_id=user.id,
+        service_type=service_type,
+        property_type="Residential / Commercial",
+        cameras=cams,
+        brand_preference="CP Plus / Hikvision HD",
+        storage_days=15,
+        estimated_amount=est_cost,
+        status="Quotation Confirmed"
     )
-
-@app.route('/services')
-def services():
-    return render_template_string(
-        SERVICES_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/packages')
-def packages():
-    return render_template_string(
-        PACKAGES_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/calculator')
-def calculator():
-    return render_template_string(
-        CALCULATOR_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/reviews')
-def reviews():
-    return render_template_string(
-        REVIEWS_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION,
-        all_reviews=CUSTOMER_REVIEWS
-    )
-
-@app.route('/careers')
-def careers():
-    return render_template_string(
-        CAREERS_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/apply-job', methods=['POST'])
-def apply_job():
-    name = request.form.get('name')
-    phone = request.form.get('phone')
-    email = request.form.get('email')
-    position = request.form.get('position')
-    experience = request.form.get('experience')
-
-    resume_filename = None
-    if 'resume' in request.files:
-        file = request.files['resume']
-        if file and file.filename != '':
-            filename = secure_filename(f"{phone}_{file.filename}")
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            resume_filename = filename
-
-    application = JobApplication(
-        name=name,
-        phone=phone,
-        email=email,
-        position=position,
-        experience=experience,
-        resume_file=resume_filename
-    )
-    db.session.add(application)
+    db.session.add(quote)
     db.session.commit()
 
-    return """
-    <script>
-        alert('Thank you! Your job application has been submitted to Hawkeye HR. Our team will contact you shortly.');
-        window.location.href = '/careers';
-    </script>
-    """
+    # Owner Notification (Customer unique ID #HWK-... ke sath)
+    send_whatsapp_alert(name, clean_phone, area, f"CID: #HWK-{user.id + 1040} | {service_type}", est_cost)
 
-# =========================== SESSION-BASED FAIL-SAFE VERIFICATION ===========================
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
+    
+    # =========================== SESSION-BASED FAIL-SAFE VERIFICATION ===========================
 
 @app.route('/login')
 def login():
