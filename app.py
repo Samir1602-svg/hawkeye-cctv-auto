@@ -2545,6 +2545,16 @@ AUTH_PAGE = f"""
 </html>
 """
 # =========================== ROUTING CONTROLLERS ===========================
+@app.route('/')
+def index():
+    reviews = CUSTOMER_REVIEWS[:6]
+    return render_template_string(
+        LANDING_PAGE,
+        styles=STYLES,
+        navbar=render_template_string(NAV_BAR),
+        reviews=reviews,
+        footer=FOOTER_SECTION
+    )
 @app.route('/login')
 def login():
     if session.get('user_id'):
