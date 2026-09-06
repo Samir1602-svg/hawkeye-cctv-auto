@@ -2477,10 +2477,10 @@ AUTH_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Customer Login | Hawkeye Security</title>
-    {{{{ styles | safe }}}
+    {{{{ styles | safe }}}}
 </head>
 <body>
-    {{{{ navbar | safe }}}
+    {{{{ navbar | safe }}}}
 
     <div class="auth-wrap" style="max-width:420px; margin:4rem auto; background:white; padding:2.5rem; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.06); text-align:center;">
         <span class="auth-badge" style="background:#e0f2fe; color:#0369a1; padding:4px 12px; border-radius:20px; font-size:0.75rem; font-weight:bold;">🔑 Customer Authentication</span>
@@ -2500,7 +2500,7 @@ AUTH_PAGE = f"""
         </div>
     </div>
 
-    {{{{ footer | safe }}}
+    {{{{ footer | safe }}}}
 </body>
 </html>
 """
