@@ -107,7 +107,8 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(15), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=True, default="OTP_VERIFIED")
+    email = db.Column(db.String(120), unique=True, nullable=True)
+    password_hash = db.Column(db.String(256), nullable=True, default="DIRECT_ACCESS")
     area = db.Column(db.String(150), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -1834,22 +1835,22 @@ LANDING_PAGE = f"""
            <div class="hero-form-box" id="get-quote">
                 <h3>Request Instant Survey</h3>
                 <p class="sub">Official quotation will sync directly to your customer account</p>
-                <form id="heroQuoteForm" action="/quick-book" method="POST">
+                <form action="/quick-book" method="POST">
                     <div class="form-group">
                         <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="text" name="name" id="q_name" placeholder="Enter your name" required>
+                        <input type="text" name="name" placeholder="Enter your name" required>
                     </div>
                     <div class="form-group">
-                        <label>Email Address (For Verification OTP) <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="email" name="email" id="q_email" placeholder="name@example.com" required>
+                        <label>Email Address <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="email" name="email" placeholder="name@example.com" required>
                     </div>
                     <div class="form-group">
-                        <label>Mobile Number (For Verification &amp; Instant Access) <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="tel" name="phone" id="q_phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
+                        <label>Mobile Number <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
                     </div>
                     <div class="form-group">
                         <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="text" name="area" id="q_area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
+                        <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
                     </div>
                     <div class="form-group">
                         <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
@@ -1860,91 +1861,10 @@ LANDING_PAGE = f"""
                             <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
                         </select>
                     </div>
-                    <button type="button" onclick="startSurveyVerification()" class="btn-submit-quote">Generate My Quotation 🚀</button>
+                    <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
                 </form>
-
-                <div id="surveyOtpModal" style="display:none; position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
-                    <div style="background:#1e293b; border:1px solid #475569; padding:24px; border-radius:12px; max-width:380px; width:90%; text-align:center;">
-                        <h4 style="color:#f8fafc; font-size:1.2rem; margin-bottom:6px;">Security Code Sent</h4>
-                        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:14px;">Enter the 6-digit code sent to your email</p>
-                        <input type="text" id="survey_user_otp" maxlength="6" placeholder="••••••" style="width:100%; padding:10px; text-align:center; font-size:1.3rem; letter-spacing:4px; border-radius:6px; background:#0f172a; border:1px solid #334155; color:#fff; margin-bottom:12px;">
-                        <div id="survey_otp_msg" style="font-size:0.85rem; margin-bottom:12px; display:none;"></div>
-                        <button type="button" onclick="confirmSurveyOtp()" style="width:100%; padding:10px; background:#38bdf8; color:#0a0f1d; font-weight:bold; border:none; border-radius:6px; cursor:pointer; margin-bottom:8px;">Verify &amp; Confirm Quote</button>
-                        <button type="button" onclick="document.getElementById('surveyOtpModal').style.display='none'" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:0.82rem;">Cancel</button>
-                    </div>
-                </div>
-
-                <script>
-                function startSurveyVerification() {{
-                    let name = document.getElementById('q_name').value.trim();
-                    let email = document.getElementById('q_email').value.trim();
-                    let phone = document.getElementById('q_phone').value.trim();
-                    let area = document.getElementById('q_area').value.trim();
-
-                    if (!name || !email || !phone || !area) {{
-                        alert('Please fill in all required fields marked with *');
-                        return;
-                    }}
-
-                    let msg = document.getElementById('survey_otp_msg');
-                    document.getElementById('surveyOtpModal').style.display = 'flex';
-                    msg.style.display = 'block';
-                    msg.style.color = '#38bdf8';
-                    msg.innerText = 'Dispatching code to ' + email + '...';
-
-                    let fd = new FormData();
-                    fd.append('email', email);
-
-                    fetch('/send-otp', {{ method: 'POST', body: fd }})
-                    .then(r => r.json())
-                    .then(d => {{
-                        if (d.success) {{
-                            msg.style.color = '#4ade80';
-                            msg.innerText = 'Code sent! Check your inbox/spam folder.';
-                        }} else {{
-                            msg.style.color = '#ef4444';
-                            msg.innerText = d.message || 'Error sending code';
-                        }}
-                    }})
-                    .catch(() => {{
-                        msg.style.color = '#ef4444';
-                        msg.innerText = 'Network connection error';
-                    }});
-                }}
-
-                function confirmSurveyOtp() {{
-                    let otp = document.getElementById('survey_user_otp').value.trim();
-                    let msg = document.getElementById('survey_otp_msg');
-
-                    if (otp.length !== 6) {{
-                        msg.style.display = 'block';
-                        msg.style.color = '#ef4444';
-                        msg.innerText = 'Enter complete 6-digit code';
-                        return;
-                    }}
-
-                    let fd = new FormData();
-                    fd.append('otp', otp);
-
-                    fetch('/verify-otp', {{ method: 'POST', body: fd }})
-                    .then(r => r.json())
-                    .then(d => {{
-                        if (d.success) {{
-                            document.getElementById('surveyOtpModal').style.display = 'none';
-                            document.getElementById('heroQuoteForm').submit();
-                        }} else {{
-                            msg.style.display = 'block';
-                            msg.style.color = '#ef4444';
-                            msg.innerText = d.message || 'Invalid code';
-                        }}
-                    }})
-                    .catch(() => {{
-                        msg.style.display = 'block';
-                        msg.style.color = '#ef4444';
-                        msg.innerText = 'Verification failed';
-                    }});
-                }}
-                </script>
+            </div>
+                
                 </div>
         </div>
     </section>
