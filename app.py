@@ -1836,34 +1836,34 @@ LANDING_PAGE = f"""
                 <h3>Request Instant Survey</h3>
                 <p class="sub">Official quotation will sync directly to your customer account</p>
                 <form action="/quick-book" method="POST">
-                    <div class="form-group">
-                        <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="text" name="name" placeholder="Enter your name" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Email Address <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="email" name="email" placeholder="name@example.com" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Mobile Number <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
-                        <select name="service_type" required>
-                            <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
-                            <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
-                            <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
-                            <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
-                </form>
-            </div>
+    <div class="form-group">
+        <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
+        <input type="text" name="name" placeholder="Enter your name" required>
+    </div>
+    <div class="form-group">
+        <label>Email Address <span style="color:#ef4444; font-weight:bold;">*</span></label>
+        <input type="email" name="email" placeholder="name@example.com" required>
+    </div>
+    <div class="form-group">
+        <label>Mobile Number <span style="color:#ef4444; font-weight:bold;">*</span></label>
+        <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
+    </div>
+    <div class="form-group">
+        <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
+        <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
+    </div>
+    <div class="form-group">
+        <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
+        <select name="service_type" required>
+            <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
+            <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
+            <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
+            <option value="Maintenance / AMC Contract">Maintenance / Existing CCTV Repair &amp; AMC</option>
+        </select>
+    </div>
+    <button type="submit" class="btn-submit-quote">Generate My Quotation 🚀</button>
+</form>
+</div>
                 
                 </div>
         </div>
