@@ -2522,116 +2522,28 @@ AUTH_PAGE = f"""
 <body>
     {{{{ navbar | safe }}}}
 
-    <div class="auth-wrap" style="max-width:440px; margin:4rem auto; background:white; padding:2.2rem; border-radius:12px; box-shadow:0 15px 35px rgba(0,0,0,0.08); text-align:center;">
-        <span class="auth-badge" style="background:#e0f2fe; color:#0369a1; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:bold;">🛡️ Secure Dual Verification</span>
-        <h2 style="font-size:1.4rem; color:var(--primary); margin: 0.8rem 0 0.4rem 0;">Customer Portal Access</h2>
-        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Verify your registered details to access quotations and AMC tickets</p>
+    <div class="auth-wrap" style="max-width:440px; margin:4.5rem auto; background:white; padding:2.5rem; border-radius:12px; box-shadow:0 15px 35px rgba(0,0,0,0.08); text-align:center;">
+        <span class="auth-badge" style="background:#e0f2fe; color:#0369a1; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:bold;">🛡️ Instant Access</span>
+        <h2 style="font-size:1.45rem; color:var(--primary); margin: 0.8rem 0 0.4rem 0;">Client Account Login</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.8rem;">Enter your registered Mobile Number or Email to view your quotations &amp; service history</p>
 
-        <form id="clientLoginForm" action="/client-login" method="POST" style="text-align:left;">
+        <form action="/client-login" method="POST" style="text-align:left;">
             <div class="form-group">
-                <label>Registered Mobile Number <span style="color:#ef4444;">*</span></label>
-                <input type="tel" name="phone" id="login_phone" placeholder="10-digit mobile number" maxlength="10" required>
+                <label style="font-weight:600; color:#334155;">Registered Mobile Number OR Email Address</label>
+                <input type="text" name="identifier" placeholder="10-digit Mobile or Email ID" style="width:100%; padding:0.85rem; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem;" required autofocus>
             </div>
-            <div class="form-group">
-                <label>Email Address <span style="color:#ef4444;">*</span></label>
-                <input type="email" name="email" id="login_email" placeholder="name@example.com" required>
-            </div>
-            <button type="button" onclick="sendLoginCode()" class="btn-submit-quote" id="btnSendCode">Send Verification Code 📩</button>
-            
-            <div id="otpInputSection" style="display:none; margin-top:1.5rem; border-top:1px dashed #cbd5e1; padding-top:1.2rem;">
-                <div class="form-group">
-                    <label style="text-align:center;">Enter 6-Digit Email OTP</label>
-                    <input type="text" name="otp" id="login_otp" maxlength="6" placeholder="••••••" style="text-align:center; font-size:1.3rem; letter-spacing:4px;" required>
-                </div>
-                <div id="login_status" style="font-size:0.85rem; margin-bottom:10px; text-align:center;"></div>
-                <button type="button" onclick="verifyAndLogin()" class="btn-submit-quote" style="background:#16a34a; color:white;">Verify &amp; Enter Dashboard 🚀</button>
-            </div>
+            <button type="submit" class="btn-submit-quote" style="background:#38bdf8; color:#0a0f1d; font-weight:800; padding:0.9rem; margin-top:1rem;">Access My Dashboard 🚀</button>
         </form>
+
+        <div style="margin-top:1.5rem; font-size:0.82rem; color:#64748b;">
+            New Customer? <a href="/#get-quote" style="color:#0284c7; font-weight:bold; text-decoration:underline;">Book a Free Site Survey</a>
+        </div>
     </div>
-
-    <script>
-    function sendLoginCode() {{
-        let phone = document.getElementById('login_phone').value.trim();
-        let email = document.getElementById('login_email').value.trim();
-        let status = document.getElementById('login_status');
-
-        if(phone.length !== 10 || !email) {{
-            alert('Please provide a valid 10-digit mobile number and email address.');
-            return;
-        }}
-
-        let btn = document.getElementById('btnSendCode');
-        btn.innerText = 'Sending Code...';
-        btn.disabled = true;
-
-        let fd = new FormData();
-        fd.append('email', email);
-
-        fetch('/send-otp', {{ method: 'POST', body: fd }})
-        .then(async (r) => {{
-            let d = await r.json().catch(() => null);
-            btn.disabled = false;
-            btn.innerText = 'Send Verification Code 📩';
-
-            if(r.ok && d && d.success) {{
-                document.getElementById('otpInputSection').style.display = 'block';
-                status.style.color = '#16a34a';
-                status.innerText = 'OTP successfully sent to ' + email;
-            }} else {{
-                alert((d && d.message) ? d.message : 'Server error: Check Gmail SMTP details or Render logs.');
-            }}
-        }})
-        .catch((err) => {{
-            btn.disabled = false;
-            btn.innerText = 'Send Verification Code 📩';
-            alert('Connection failed. Please try again.');
-        }});
-    }}            }} else {{
-                alert(d.message || 'Failed to dispatch OTP');
-                document.getElementById('btnSendCode').innerText = 'Send Verification Code 📩';
-            }}
-        }})
-        .catch(() => {{
-            alert('Network error while sending OTP');
-            document.getElementById('btnSendCode').innerText = 'Send Verification Code 📩';
-        }});
-    }}
-
-    function verifyAndLogin() {{
-        let otp = document.getElementById('login_otp').value.trim();
-        let status = document.getElementById('login_status');
-
-        if(otp.length !== 6) {{
-            status.style.color = '#ef4444';
-            status.innerText = 'Please enter valid 6-digit OTP';
-            return;
-        }}
-
-        let fd = new FormData();
-        fd.append('otp', otp);
-
-        fetch('/verify-otp', {{ method: 'POST', body: fd }})
-        .then(r => r.json())
-        .then(d => {{
-            if(d.success) {{
-                document.getElementById('clientLoginForm').submit();
-            }} else {{
-                status.style.color = '#ef4444';
-                status.innerText = d.message || 'Invalid OTP code';
-            }}
-        }})
-        .catch(() => {{
-            status.style.color = '#ef4444';
-            status.innerText = 'Verification failed';
-        }});
-    }}
-    </script>
 
     {{{{ footer | safe }}}}
 </body>
 </html>
 """
-
 # =========================== ROUTING CONTROLLERS ===========================
 @app.route('/login')
 def login():
@@ -2735,156 +2647,7 @@ def quick_book():
     session['user_name'] = user.name
     return redirect(url_for('portal'))
     
-    # =========================== SESSION-BASED FAIL-SAFE VERIFICATION ===========================
-
-@app.route('/login')
-def login():
-    if session.get('user_id'):
-        return redirect(url_for('portal'))
-    return render_template_string(
-        AUTH_PAGE,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/client-login', methods=['POST'])
-def client_login_submit():
-    phone = request.form.get('phone', '').strip()
-    email = request.form.get('email', '').strip()
-
-    user = User.query.filter((User.phone == phone) | (User.email == email)).first()
-    if not user:
-        user = User(
-            name=f"Client {phone[-4:]}",
-            phone=phone,
-            email=email,
-            password_hash="OTP_VERIFIED",
-            area="Delhi NCR"
-        )
-        db.session.add(user)
-        db.session.commit()
-
-    session['user_id'] = user.id
-    session['user_name'] = user.name
-    return redirect(url_for('portal'))
-    
-@app.route('/quick-book', methods=['POST'])
-def quick_book():
-    name = request.form.get('name')
-    phone = request.form.get('phone')
-    area = request.form.get('area')
-    service_type = request.form.get('service_type')
-
-    if not re.match(r"^[6-9]\d{9}$", phone):
-        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
-
-    user = User.query.filter_by(phone=phone).first()
-    if not user:
-        try:
-            user = User(name=name, phone=phone, password_hash="OTP_VERIFIED", area=area)
-            db.session.add(user)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            user = User.query.filter_by(phone=phone).first()
-
-    cams = 4
-    if "6-Camera" in service_type: cams = 6
-    elif "8-Camera" in service_type: cams = 8
-    elif "16+" in service_type: cams = 16
-
-    est_cost = calculate_quote(cams, "Hawkeye", 15)
-
-    quote = Quotation(
-        user_id=user.id,
-        service_type=service_type,
-        property_type="Residential / Commercial",
-        cameras=cams,
-        brand_preference="CP Plus / Hikvision HD",
-        storage_days=15,
-        estimated_amount=est_cost,
-        status="Quotation Confirmed"
-    )
-    db.session.add(quote)
-    db.session.commit()
-
-    send_whatsapp_alert(name, phone, area, service_type, est_cost)
-
-    session['user_id'] = user.id
-    session['user_name'] = user.name
-    return redirect(url_for('portal'))
-
-@app.route('/portal')
-def portal():
-    user_id = session.get('user_id')
-    if not user_id:
-        return redirect(url_for('login'))
-    user = User.query.get(user_id)
-    return render_template_string(
-        PORTAL_PAGE,
-        user=user,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/create-quote', methods=['POST'])
-def create_quote():
-    user_id = session.get('user_id')
-    if not user_id:
-        return redirect(url_for('login'))
-
-    user = User.query.get(user_id)
-    cams = int(request.form.get('cameras'))
-    prop = request.form.get('property_type')
-    brand = request.form.get('brand')
-    storage = int(request.form.get('storage_days'))
-
-    cost = calculate_quote(cams, brand, storage)
-    q = Quotation(
-        user_id=user_id,
-        service_type=f"{brand} {cams}-Camera System",
-        property_type=prop,
-        cameras=cams,
-        brand_preference=brand,
-        storage_days=storage,
-        estimated_amount=cost,
-        status="Quotation Generated"
-    )
-    db.session.add(q)
-    db.session.commit()
-
-    send_whatsapp_alert(user.name, user.phone, user.area, f"{brand} {cams}-Camera System", cost)
-    return redirect(url_for('portal'))
-
-@app.route('/create-ticket', methods=['POST'])
-def create_ticket():
-    user_id = session.get('user_id')
-    if not user_id:
-        return redirect(url_for('login'))
-
-    user = User.query.get(user_id)
-    issue = request.form.get('issue_type')
-    desc = request.form.get('description')
-    slot = request.form.get('preferred_slot')
-
-    ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
-
-    ticket = MaintenanceTicket(
-        ticket_id=ticket_code,
-        user_id=user_id,
-        issue_type=issue,
-        description=desc,
-        preferred_slot=slot,
-        status="Technician Dispatched"
-    )
-    db.session.add(ticket)
-    db.session.commit()
-
-    send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
-    return redirect(url_for('portal'))
-
+  
 # =========================== OWNER ADMIN CONSOLE & EXPORT ===========================
 
 ADMIN_PAGE = """
