@@ -1877,14 +1877,13 @@ LANDING_PAGE = f"""
 <script>
 let quotationForm = document.querySelector('form[action="/quick-book"]');
 
-if (quotationForm) {
-    quotationForm.addEventListener('submit', function(e) {
-        if (!window.isOtpVerified) {
+if (quotationForm) {{
+    quotationForm.addEventListener('submit', function(e) {{
+        if (!window.isOtpVerified) {{
             e.preventDefault();
             let emailVal = document.getElementById('survey_email').value;
             let statusDiv = document.getElementById('otp_status');
             
-            // Show modal and send OTP
             document.getElementById('otpModal').style.display = 'flex';
             statusDiv.style.display = 'block';
             statusDiv.style.color = '#38bdf8';
@@ -1893,70 +1892,69 @@ if (quotationForm) {
             let formData = new FormData();
             formData.append('email', emailVal);
 
-            fetch('/send-otp', {
+            fetch('/send-otp', {{
                 method: 'POST',
                 body: formData
-            })
+            }})
             .then(res => res.json())
-            .then(data => {
-                if (data.success) {
+            .then(data => {{
+                if (data.success) {{
                     statusDiv.style.color = '#4ade80';
                     statusDiv.innerText = 'OTP sent! Please check your inbox.';
-                } else {
+                }} else {{
                     statusDiv.style.color = '#ef4444';
                     statusDiv.innerText = data.message || 'Failed to send OTP.';
-                }
-            })
-            .catch(() => {
+                }}
+            }})
+            .catch(() => {{
                 statusDiv.style.color = '#ef4444';
                 statusDiv.innerText = 'Network error while sending OTP.';
-            });
-        }
-    });
-}
+            }});
+        }}
+    }});
+}}
 
-function submitOtpVerification() {
+function submitOtpVerification() {{
     let otpVal = document.getElementById('otp_input').value.trim();
     let statusDiv = document.getElementById('otp_status');
 
-    if (otpVal.length !== 6) {
+    if (otpVal.length !== 6) {{
         statusDiv.style.display = 'block';
         statusDiv.style.color = '#ef4444';
         statusDiv.innerText = 'Please enter valid 6-digit OTP';
         return;
-    }
+    }}
 
     let formData = new FormData();
     formData.append('otp', otpVal);
 
-    fetch('/verify-otp', {
+    fetch('/verify-otp', {{
         method: 'POST',
         body: formData
-    })
+    }})
     .then(res => res.json())
-    .then(data => {
-        if (data.success) {
+    .then(data => {{
+        if (data.success) {{
             window.isOtpVerified = true;
             document.getElementById('otpModal').style.display = 'none';
             quotationForm.submit();
-        } else {
+        }} else {{
             statusDiv.style.display = 'block';
             statusDiv.style.color = '#ef4444';
             statusDiv.innerText = data.message || 'Invalid OTP. Try again.';
-        }
-    })
-    .catch(() => {
+        }}
+    }})
+    .catch(() => {{
         statusDiv.style.display = 'block';
         statusDiv.style.color = '#ef4444';
         statusDiv.innerText = 'Verification failed. Try again.';
-    });
-}
+    }});
+}}
 
-function closeOtpModal() {
+function closeOtpModal() {{
     document.getElementById('otpModal').style.display = 'none';
-}
-</script>
-                </div>
+}}
+</script>                </div>
         </div>
     </section>
 
