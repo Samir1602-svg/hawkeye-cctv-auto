@@ -2542,11 +2542,9 @@ AUTH_PAGE = f"""
 # =========================== ROUTING CONTROLLERS ===========================
 
 @app.route('/logo.png')
-def serve_brand_logo():
-    import base64
-    logo_data = base64.b64decode(HAWKEYE_EMBLEM_B64)
-    return Response(logo_data, mimetype='image/png', headers={"Cache-Control": "public, max-age=31536000"})
-
+def serve_root_logo():
+    from flask import send_from_directory
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'logo.png')
 @app.route('/')
 def index():
     return render_template_string(
