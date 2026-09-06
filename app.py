@@ -2556,39 +2556,6 @@ def login():
         footer=FOOTER_SECTION
     )
 
-@app.route('/client-login', methods=['POST'])
-def client_login():
-    raw_id = request.form.get('identifier', '').strip()
-    clean_digits = re.sub(r'\D', '', raw_id)
-    
-    # Phone ya Email kisi se bhi account search karein
-    user = None
-    if len(clean_digits) == 10:
-        user = User.query.filter_by(phone=clean_digits).first()
-    
-    if not user:
-        user = User.query.filter_by(email=raw_id.lower()).first()
-
-    # Agar bilkul naya user hai toh auto-register karein
-    if not user:
-        if len(clean_digits) == 10:
-            user = User(name=f"Customer {clean_digits[-4:]}", phone=clean_digits, email=None, area="Delhi NCR")
-        elif "@" in raw_id:
-            temp_phone = f"99{secrets.randbelow(89999999) + 10000000}"
-            user = User(name=raw_id.split('@')[0].capitalize(), phone=temp_phone, email=raw_id.lower(), area="Delhi NCR")
-        else:
-            return "<script>alert('Please enter a valid 10-digit Indian mobile number or Email address.'); window.history.back();</script>"
-        
-        db.session.add(user)
-        db.session.commit()
-
-    # Owner alert ki customer ne login kiya
-    send_whatsapp_alert(user.name, user.phone, user.area, f"CLIENT PORTAL LOGIN: {raw_id}", 0)
-
-    session['user_id'] = user.id
-    session['user_name'] = user.name
-    return redirect(url_for('portal'))
-
 @app.route('/quick-book', methods=['POST'])
 def quick_book():
     name = request.form.get('name', '').strip()
@@ -2601,7 +2568,6 @@ def quick_book():
     if len(clean_phone) != 10:
         return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
 
-    # Pehle phone ya email se check karein ki customer pehle se hai ya naya
     user = User.query.filter((User.phone == clean_phone) | (User.email == email)).first()
     if not user:
         user = User(
@@ -2613,7 +2579,6 @@ def quick_book():
         db.session.add(user)
         db.session.commit()
     else:
-        # Existing user ka record update karein
         if name: user.name = name
         if email: user.email = email
         if area: user.area = area
@@ -2626,7 +2591,6 @@ def quick_book():
 
     est_cost = calculate_quote(cams, "Hawkeye", 15)
 
-    # Quotation hamesha customer ki usi permanent Unique ID ke sath judegi
     quote = Quotation(
         user_id=user.id,
         service_type=service_type,
@@ -2640,14 +2604,66 @@ def quick_book():
     db.session.add(quote)
     db.session.commit()
 
-    # Owner Notification (Customer unique ID #HWK-... ke sath)
+    send_whatsapp_alert(name, clean_phone, area, f"CID: #HWK-{user.id + 1040} | {service_type}", est_cost)
+
+    session['user_id'] = user.id
+    session['user_name'] = user.name
+    return redirect(url_for('portal'))
+  
+@app.route('/quick-book', methods=['POST'])
+def quick_book():
+    name = request.form.get('name', '').strip()
+    phone = request.form.get('phone', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    area = request.form.get('area', '').strip()
+    service_type = request.form.get('service_type')
+
+    clean_phone = re.sub(r'\D', '', phone)[-10:]
+    if len(clean_phone) != 10:
+        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
+
+    user = User.query.filter((User.phone == clean_phone) | (User.email == email)).first()
+    if not user:
+        user = User(
+            name=name,
+            phone=clean_phone,
+            email=email if email else None,
+            area=area
+        )
+        db.session.add(user)
+        db.session.commit()
+    else:
+        if name: user.name = name
+        if email: user.email = email
+        if area: user.area = area
+        db.session.commit()
+
+    cams = 4
+    if "6-Camera" in service_type: cams = 6
+    elif "8-Camera" in service_type: cams = 8
+    elif "16+" in service_type: cams = 16
+
+    est_cost = calculate_quote(cams, "Hawkeye", 15)
+
+    quote = Quotation(
+        user_id=user.id,
+        service_type=service_type,
+        property_type="Residential / Commercial",
+        cameras=cams,
+        brand_preference="CP Plus / Hikvision HD",
+        storage_days=15,
+        estimated_amount=est_cost,
+        status="Quotation Confirmed"
+    )
+    db.session.add(quote)
+    db.session.commit()
+
     send_whatsapp_alert(name, clean_phone, area, f"CID: #HWK-{user.id + 1040} | {service_type}", est_cost)
 
     session['user_id'] = user.id
     session['user_name'] = user.name
     return redirect(url_for('portal'))
     
-  
 # =========================== OWNER ADMIN CONSOLE & EXPORT ===========================
 
 ADMIN_PAGE = """
