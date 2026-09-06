@@ -2588,7 +2588,6 @@ PORTAL_PAGE = f"""
 """
 
 AUTH_PAGE = f"""
-AUTH_PAGE = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
