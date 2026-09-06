@@ -1516,7 +1516,7 @@ def calculate_quote(cameras, brand="Hawkeye", storage=15):
 
 LOGO_SVG = """
 <div class="brand-badge-container">
-    <img src="/static/logo.png" alt="Hawkeye CCTV Logo" class="brand-logo-img cctv-scan-pulse" width="46" height="46">
+    <img src="https://i.imgur.com/your_logo_link.png" alt="Hawkeye CCTV Logo" class="brand-logo-img cctv-scan-pulse" width="46" height="46">
     <div class="brand-titles">
         <div class="brand-name">HAWK<span class="gold-text">EYE</span></div>
         <div class="brand-sub">CCTV AND AUTOMATION</div>
