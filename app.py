@@ -35,14 +35,16 @@ Regards,
 Hawkeye CCTV & Automation Team"""
         msg.attach(MIMEText(body, 'plain'))
         
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_USER, to_email, msg.as_string())
+        # Port 587 with STARTTLS (Cloud & Render ke liye 100% reliable)
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        server.sendmail(GMAIL_USER, to_email, msg.as_string())
+        server.quit()
         return True
     except Exception as e:
         print(f"Failed to send email OTP: {e}")
         return False
-
 app = Flask(__name__)
 app.secret_key = 'hawkeye_cctv_secure_production_secret_key_2026'
 
@@ -2638,19 +2640,33 @@ AUTH_PAGE = f"""
             return;
         }}
 
-        document.getElementById('btnSendCode').innerText = 'Sending Code...';
+        let btn = document.getElementById('btnSendCode');
+        btn.innerText = 'Sending Code...';
+        btn.disabled = true;
 
         let fd = new FormData();
         fd.append('email', email);
 
         fetch('/send-otp', {{ method: 'POST', body: fd }})
-        .then(r => r.json())
-        .then(d => {{
-            if(d.success) {{
+        .then(async (r) => {{
+            let d = await r.json().catch(() => null);
+            btn.disabled = false;
+            btn.innerText = 'Send Verification Code 📩';
+
+            if(r.ok && d && d.success) {{
                 document.getElementById('otpInputSection').style.display = 'block';
                 status.style.color = '#16a34a';
                 status.innerText = 'OTP successfully sent to ' + email;
             }} else {{
+                alert((d && d.message) ? d.message : 'Server error: Check Gmail SMTP details or Render logs.');
+            }}
+        }})
+        .catch((err) => {{
+            btn.disabled = false;
+            btn.innerText = 'Send Verification Code 📩';
+            alert('Connection failed. Please try again.');
+        }});
+    }}            }} else {{
                 alert(d.message || 'Failed to dispatch OTP');
                 document.getElementById('btnSendCode').innerText = 'Send Verification Code 📩';
             }}
