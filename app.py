@@ -2476,69 +2476,34 @@ AUTH_PAGE = f"""
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
-    <title>Client Portal Access | Hawkeye Security</title>
-    {{{{ styles | safe }}}}
+    <title>Customer Login | Hawkeye Security</title>
+    {{{{ styles | safe }}}
 </head>
 <body>
-    {{{{ navbar | safe }}}}
+    {{{{ navbar | safe }}}
 
-    <div class="auth-wrap">
-        <div class="auth-card">
-            <div class="auth-logo-box">
-                {LOGO_SVG}
+    <div class="auth-wrap" style="max-width:420px; margin:4rem auto; background:white; padding:2.5rem; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.06); text-align:center;">
+        <span class="auth-badge" style="background:#e0f2fe; color:#0369a1; padding:4px 12px; border-radius:20px; font-size:0.75rem; font-weight:bold;">🔑 Customer Authentication</span>
+        <h2 style="font-size:1.4rem; color:var(--primary); margin:0.8rem 0 0.4rem 0;">Existing Customer Login</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Enter your registered 10-digit mobile number to access your account</p>
+
+        <form action="/client-login" method="POST" style="text-align:left;">
+            <div class="form-group">
+                <label>Mobile Number</label>
+                <input type="tel" name="phone" placeholder="10-digit mobile number" maxlength="10" required autofocus style="padding:0.8rem; font-size:1rem;">
             </div>
+            <button type="submit" class="btn-submit-quote" style="background:#38bdf8; color:#0a0f1d; font-weight:800; padding:0.85rem; margin-top:0.8rem;">Access My Dashboard 🚀</button>
+        </form>
 
-            <span class="auth-badge">🛡️ Instant Secure Verification</span>
-            <h2 style="font-size:1.4rem; color:var(--primary); margin-bottom: 0.4rem;">Customer Portal Access</h2>
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Access verified surveillance proposals, warranty cards &amp; service tickets</p>
-
-            <!-- STEP 1: MOBILE NUMBER ENTRY -->
-            <form id="step-phone-form" action="/send-otp" method="POST" style="text-align:left; {{% if step == 'verify' %}}display:none;{{% endif %}}">
-                <div class="form-group">
-                    <label>Registered Mobile Number</label>
-                    <input type="tel" name="phone" placeholder="Enter 10-digit mobile number" maxlength="10" value="{{{{ phone or '' }}}}" required autofocus>
-                </div>
-                <div class="form-group">
-                    <label>Your Name (If first time login)</label>
-                    <input type="text" name="name" placeholder="Full Name" value="{{{{ name or '' }}}}">
-                </div>
-                <button type="submit" class="btn-submit-quote">Send Security Code 📩</button>
-            </form>
-
-            <!-- STEP 2: VERIFICATION CODE ENTRY -->
-            {{% if step == 'verify' %}}
-            <form id="step-otp-form" action="/verify-otp" method="POST" style="text-align:left;">
-                <input type="hidden" name="phone" value="{{{{ phone }}}}">
-                
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:0.8rem; border-radius:6px; margin-bottom:1rem; font-size:0.85rem;">
-                    Verification Code sent to: <strong>+91 {{{{ phone }}}}</strong>
-                    <a href="/login" style="float:right; color:#ef4444; font-weight:600; text-decoration:none;">Change</a>
-                </div>
-
-                <div class="form-group">
-                    <label style="text-align:center;">Enter 6-Digit Access Code</label>
-                    <input type="text" name="otp_code" class="passcode-input" placeholder="••••••" maxlength="6" inputmode="numeric" required autofocus autocomplete="off">
-                </div>
-
-                <button type="submit" class="btn-submit-quote" style="background:#16a34a; color:white;">Verify &amp; Enter Dashboard 🚀</button>
-
-                <div class="resend-box">
-                    <span>Didn't receive code?</span>
-                    <form action="/send-otp" method="POST" style="display:inline;">
-                        <input type="hidden" name="phone" value="{{{{ phone }}}}">
-                        <button type="submit" class="btn-link">Resend Code</button>
-                    </form>
-                </div>
-            </form>
-            {{% endif %}}
+        <div style="margin-top:1.5rem; font-size:0.82rem; color:#64748b;">
+            New to Hawkeye? <a href="/#get-quote" style="color:#0284c7; font-weight:bold; text-decoration:underline;">Book a Free Survey</a>
         </div>
     </div>
 
-    {{{{ footer | safe }}}}
+    {{{{ footer | safe }}}
 </body>
 </html>
 """
-
 # =========================== ROUTING CONTROLLERS ===========================
 
 @app.route('/logo.png')
@@ -2651,80 +2616,23 @@ def login():
         footer=FOOTER_SECTION
     )
 
-@app.route('/send-otp', methods=['POST'])
-def send_otp():
+@app.route('/client-login', methods=['POST'])
+def client_login():
     phone = request.form.get('phone', '').strip()
-    name = request.form.get('name', '').strip()
-
-    if not re.match(r"^[6-9]\d{9}$", phone):
-        return "<script>alert('Please enter a valid 10-digit Indian Mobile Number'); window.history.back();</script>"
-
-    otp_code = str(secrets.randbelow(900000) + 100000)
+    clean_phone = re.sub(r'\D', '', phone)[-10:]
     
-    # Store directly in secure server session
-    session['auth_phone'] = phone
-    session['auth_code'] = otp_code
-    session['auth_expiry'] = (datetime.utcnow() + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")
-    if name:
-        session['temp_name'] = name
+    if len(clean_phone) != 10:
+        return "<script>alert('Please enter a valid 10-digit mobile number'); window.history.back();</script>"
 
-    dispatch_customer_otp(phone, otp_code)
-
-    return render_template_string(
-        AUTH_PAGE,
-        step="verify",
-        phone=phone,
-        name=name,
-        styles=STYLES,
-        navbar=render_template_string(NAV_BAR),
-        footer=FOOTER_SECTION
-    )
-
-@app.route('/verify-otp', methods=['POST'])
-def verify_otp():
-    phone = request.form.get('phone', '').strip()
-    user_otp = request.form.get('otp_code', '').strip()
-
-    saved_phone = session.get('auth_phone')
-    saved_code = session.get('auth_code')
-    expiry_str = session.get('auth_expiry')
-
-    if not saved_code or saved_phone != phone:
-        return "<script>alert('No active verification code found. Please request a new code.'); window.location.href='/login';</script>"
-
-    expiry_time = datetime.strptime(expiry_str, "%Y-%m-%d %H:%M:%S")
-    if datetime.utcnow() > expiry_time:
-        session.pop('auth_code', None)
-        return "<script>alert('Code has expired! Codes are valid for 5 minutes.'); window.location.href='/login';</script>"
-
-    if user_otp != saved_code:
-        return "<script>alert('Incorrect code entered! Please check the code and try again.'); window.history.back();</script>"
-
-    # Clear code after success
-    session.pop('auth_code', None)
-    session.pop('auth_expiry', None)
-
-    # Fetch or Auto-Register Customer Profile
-    user = User.query.filter_by(phone=phone).first()
+    user = User.query.filter_by(phone=clean_phone).first()
     if not user:
-        user_name = session.pop('temp_name', f"Customer {phone[-4:]}")
-        try:
-            user = User(
-                name=user_name,
-                phone=phone,
-                password_hash="OTP_VERIFIED",
-                area="Delhi NCR"
-            )
-            db.session.add(user)
-            db.session.commit()
-        except Exception as db_err:
-            db.session.rollback()
-            user = User.query.filter_by(phone=phone).first()
+        return "<script>alert('No customer account found with this mobile number. Please book a free survey first!'); window.location.href='/#get-quote';</script>"
+
+    send_whatsapp_alert(user.name, user.phone, user.area, "DIRECT PORTAL LOGIN", 0)
 
     session['user_id'] = user.id
     session['user_name'] = user.name
     return redirect(url_for('portal'))
-
 @app.route('/quick-book', methods=['POST'])
 def quick_book():
     name = request.form.get('name')
