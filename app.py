@@ -1761,8 +1761,47 @@ LANDING_PAGE = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
     <title>Hawkeye CCTV &amp; Automation | Complete Security Solutions Delhi NCR</title>
-        <meta name="description" content="Hawkeye CCTV and Automation - Leading CCTV installation, 5MP IP cameras, biometric access control, and repair AMC services across Delhi NCR.">
-        <meta name="keywords" content="Hawkeye CCTV, CCTV installation Delhi, CCTV repair Dwarka, Hawkeye Automation">
+    <meta name="description" content="Hawkeye CCTV and Automation - Leading CCTV installation, 5MP IP cameras, biometric access control, and repair AMC services across Delhi NCR.">
+    <meta name="keywords" content="Hawkeye CCTV, CCTV installation Delhi, CCTV repair Dwarka, Hawkeye Automation">
+    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "HomeAndConstructionBusiness",
+      "name": "Hawkeye CCTV and Automation",
+      "image": "https://hawkeye-cctv-auto.onrender.com/logo.png",
+      "@id": "https://hawkeye-cctv-auto.onrender.com",
+      "url": "https://hawkeye-cctv-auto.onrender.com",
+      "telephone": "+919971332864",
+      "priceRange": "₹₹",
+      "address": {{
+        "@type": "PostalAddress",
+        "streetAddress": "Old Palam Road, Kakrola, Dwarka Sector 15",
+        "addressLocality": "New Delhi",
+        "addressRegion": "DL",
+        "postalCode": "110078",
+        "addressCountry": "IN"
+      }},
+      "geo": {{
+        "@type": "GeoCoordinates",
+        "latitude": 28.6080,
+        "longitude": 77.0326
+      }},
+      "openingHoursSpecification": {{
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+        ],
+        "opens": "08:30",
+        "closes": "20:00"
+      }},
+      "areaServed": [
+        "Dwarka", "Kakrola", "Janakpuri", "Rohini", "Pitampura", "South Extension", "Delhi NCR", "Noida", "Gurugram"
+      ],
+      "sameAs": [
+        "https://wa.me/919971332864"
+      ]
+    }}
+    </script>
     {{{{ styles | safe }}}}
 </head>
 <body>
@@ -1805,20 +1844,24 @@ LANDING_PAGE = f"""
                 <p class="sub">Official quotation will sync directly to your customer account</p>
                 <form action="/quick-book" method="POST">
                     <div class="form-group">
-                        <label>Full Name</label>
+                        <label>Full Name <span style="color:#ef4444; font-weight:bold;">*</span></label>
                         <input type="text" name="name" placeholder="Enter your name" required>
                     </div>
                     <div class="form-group">
-                        <label>Mobile Number (For Verification &amp; Instant Access)</label>
+                        <label>Email Address <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <input type="email" name="email" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mobile Number <span style="color:#ef4444; font-weight:bold;">*</span></label>
                         <input type="tel" name="phone" placeholder="10-digit Indian mobile number" maxlength="10" required>
                     </div>
                     <div class="form-group">
-                        <label>Location / Area in Delhi NCR</label>
+                        <label>Location / Area in Delhi NCR <span style="color:#ef4444; font-weight:bold;">*</span></label>
                         <input type="text" name="area" placeholder="e.g. Pitampura, Janakpuri, Sector 62" required>
                     </div>
                     <div class="form-group">
-                        <label>Premises &amp; Deployment Scope</label>
-                        <select name="service_type">
+                        <label>Premises &amp; Deployment Scope <span style="color:#ef4444; font-weight:bold;">*</span></label>
+                        <select name="service_type" required>
                             <option value="Residential 4-Camera Setup">Residential (Villa / Independent Floor / Apartment)</option>
                             <option value="Commercial 8-Camera Setup">Commercial (Retail Shop / Corporate Office)</option>
                             <option value="Industrial 16+ CCTV Setup">Industrial / Warehouse / Housing Complex</option>
