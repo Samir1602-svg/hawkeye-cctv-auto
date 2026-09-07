@@ -1760,7 +1760,9 @@ LANDING_PAGE = f"""
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/logo.png">
-    <title>Hawkeye Security &amp; Automation | Complete CCTV Solutions Delhi NCR</title>
+    <title>Hawkeye CCTV &amp; Automation | Complete Security Solutions Delhi NCR</title>
+        <meta name="description" content="Hawkeye CCTV and Automation - Leading CCTV installation, 5MP IP cameras, biometric access control, and repair AMC services across Delhi NCR.">
+        <meta name="keywords" content="Hawkeye CCTV, CCTV installation Delhi, CCTV repair Dwarka, Hawkeye Automation">
     {{{{ styles | safe }}}}
 </head>
 <body>
