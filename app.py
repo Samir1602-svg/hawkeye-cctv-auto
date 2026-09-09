@@ -2407,7 +2407,7 @@ PORTAL_PAGE = f"""
                 </div>
 
                 <div class="portal-card">
-                <h3>
+              <h3>
                     <span>🛠️ Active Service &amp; Repair Tickets</span>
                     <span style="font-size:0.85rem; color:var(--text-muted);">Real-time Technician Status</span>
                 </h3>
@@ -2429,16 +2429,11 @@ PORTAL_PAGE = f"""
                             <strong>Issue:</strong> {{{{ t.description }}}}
                         </p>
 
-                        <!-- Timing & Reschedule Box -->
                         <div style="background:#f8fafc; border-left:4px solid #16a34a; padding:8px 12px; border-radius:4px; margin:10px 0;">
-                            <span style="color:#64748b; font-size:0.8rem;">Confirmed Service Timing:</span><br>
-                            <strong style="color:#16a34a; font-size:0.95rem;">{{{{ t.confirmed_slot or t.preferred_slot or 'Awaiting Confirmation from Hawkeye' }}}}</strong>
-                            {{% if t.confirmed_slot and t.confirmed_slot != t.preferred_slot %}}
-                                <span style="color:#d97706; font-size:0.75rem; display:block; margin-top:2px;">(Slot rescheduled &amp; confirmed by Hawkeye Support)</span>
-                            {{% endif %}}
+                            <span style="color:#64748b; font-size:0.8rem;">Service Timing:</span><br>
+                            <strong style="color:#16a34a; font-size:0.95rem;">{{{{ t.confirmed_slot or t.preferred_slot or 'Awaiting Confirmation' }}}}</strong>
                         </div>
 
-                        <!-- Technician Details Box -->
                         {{% if t.technician_name %}}
                         <div style="background:#f8fafc; border-left:4px solid #0284c7; padding:8px 12px; border-radius:4px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
                             <div>
@@ -2453,52 +2448,20 @@ PORTAL_PAGE = f"""
                         </div>
                         {{% endif %}}
 
-                        <!-- 5-Step Visual Progress Bar -->
-                        <div style="margin-top:16px; padding-top:12px; border-top:1px dashed #e2e8f0;">
-                            <div style="display:flex; justify-content:space-between; text-align:center; font-size:0.7rem; position:relative;">
-                                
-                                <div style="flex:1;">
-                                    <div style="width:22px; height:22px; border-radius:50%; background:#16a34a; color:#fff; margin:0 auto 4px auto; line-height:22px; font-weight:bold;">✓</div>
-                                    <span style="color:#16a34a; font-weight:bold;">Request<br>Received</span>
-                                </div>
-
-                                <div style="flex:1;">
-                                    <div style="width:22px; height:22px; border-radius:50%; background:{{% if t.status in ['Timing Confirmed', 'Technician Dispatched', 'In Progress', 'Completed'] %}}#16a34a{{% else %}}#cbd5e1{{% endif %}}; color:#fff; margin:0 auto 4px auto; line-height:22px; font-weight:bold;">
-                                        {{% if t.status in ['Timing Confirmed', 'Technician Dispatched', 'In Progress', 'Completed'] %}}✓{{% else %}}2{{% endif %}}
-                                    </div>
-                                    <span style="color:{{% if t.status in ['Timing Confirmed', 'Technician Dispatched', 'In Progress', 'Completed'] %}}#16a34a{{% else %}}#64748b{{% endif %}};">Timing<br>Confirmed</span>
-                                </div>
-
-                                <div style="flex:1;">
-                                    <div style="width:22px; height:22px; border-radius:50%; background:{{% if t.status in ['Technician Dispatched', 'In Progress', 'Completed'] %}}#16a34a{{% else %}}#cbd5e1{{% endif %}}; color:#fff; margin:0 auto 4px auto; line-height:22px; font-weight:bold;">
-                                        {{% if t.status in ['Technician Dispatched', 'In Progress', 'Completed'] %}}✓{{% else %}}3{{% endif %}}
-                                    </div>
-                                    <span style="color:{{% if t.status in ['Technician Dispatched', 'In Progress', 'Completed'] %}}#16a34a{{% else %}}#64748b{{% endif %}};">Tech<br>Dispatched</span>
-                                </div>
-
-                                <div style="flex:1;">
-                                    <div style="width:22px; height:22px; border-radius:50%; background:{{% if t.status in ['In Progress', 'Completed'] %}}#16a34a{{% else %}}#cbd5e1{{% endif %}}; color:#fff; margin:0 auto 4px auto; line-height:22px; font-weight:bold;">
-                                        {{% if t.status in ['In Progress', 'Completed'] %}}✓{{% else %}}4{{% endif %}}
-                                    </div>
-                                    <span style="color:{{% if t.status in ['In Progress', 'Completed'] %}}#16a34a{{% else %}}#64748b{{% endif %}};">Work in<br>Progress</span>
-                                </div>
-
-                                <div style="flex:1;">
-                                    <div style="width:22px; height:22px; border-radius:50%; background:{{% if t.status == 'Completed' %}}#16a34a{{% else %}}#cbd5e1{{% endif %}}; color:#fff; margin:0 auto 4px auto; line-height:22px; font-weight:bold;">
-                                        {{% if t.status == 'Completed' %}}✓{{% else %}}5{{% endif %}}
-                                    </div>
-                                    <span style="color:{{% if t.status == 'Completed' %}}#16a34a{{% else %}}#64748b{{% endif %}};">Job<br>Completed</span>
-                                </div>
-
-                            </div>
+                        <!-- Safe 5-Step Pipeline Indicators -->
+                        <div style="margin-top:14px; padding-top:10px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-between; text-align:center; font-size:0.75rem;">
+                            <div style="flex:1; color:#16a34a; font-weight:bold;">●<br>Received</div>
+                            <div style="flex:1; font-weight:bold; {{% if t.status in ['Timing Confirmed', 'Technician Dispatched', 'In Progress', 'Completed'] %}}color:#16a34a;{{% else %}}color:#94a3b8;{{% endif %}}">●<br>Confirmed</div>
+                            <div style="flex:1; font-weight:bold; {{% if t.status in ['Technician Dispatched', 'In Progress', 'Completed'] %}}color:#16a34a;{{% else %}}color:#94a3b8;{{% endif %}}">●<br>Dispatched</div>
+                            <div style="flex:1; font-weight:bold; {{% if t.status in ['In Progress', 'Completed'] %}}color:#16a34a;{{% else %}}color:#94a3b8;{{% endif %}}">●<br>In Progress</div>
+                            <div style="flex:1; font-weight:bold; {{% if t.status == 'Completed' %}}color:#16a34a;{{% else %}}color:#94a3b8;{{% endif %}}">●<br>Completed</div>
                         </div>
                     </div>
                     {{% endfor %}}
                 {{% else %}}
                     <p style="color:var(--text-muted); font-size:0.9rem;">No active maintenance requests. Click "Raise Service / Repair Ticket" above if you need assistance.</p>
-                {{% endif %}}
+               {{% endif %}}
             </div>
-            <div>
                 <div class="portal-card">
                     <h3>🛡️ Warranty &amp; AMC Status</h3>
                     <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:1rem; border-radius:8px; margin-bottom:1rem;">
@@ -2752,8 +2715,8 @@ def apply_job():
 
 @app.route('/admin/update-ticket/<int:ticket_id>', methods=['POST'])
 def admin_update_ticket(ticket_id):
-    if not session.get('admin_logged_in'):
-        return redirect(url_for('admin_login'))
+    if not session.get('is_admin'):
+        return redirect('/admin')
     
     ticket = MaintenanceTicket.query.get_or_404(ticket_id)
     
@@ -2779,10 +2742,8 @@ def admin_update_ticket(ticket_id):
             pass
             
     db.session.commit()
-    flash(f"Ticket {ticket.ticket_code} updated successfully!", "success")
-    return redirect(url_for('admin_dashboard'))
-
-# =========================== SESSION-BASED FAIL-SAFE VERIFICATION ===========================
+    return redirect('/admin')
+    # =========================== SESSION-BASED FAIL-SAFE VERIFICATION ===========================
 
 @app.route('/login')
 def login():
@@ -2918,19 +2879,18 @@ def create_ticket():
     ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
 
     ticket = MaintenanceTicket(
-        ticket_id=ticket_code,
+        ticket_code=ticket_code,
         user_id=user_id,
         issue_type=issue,
         description=desc,
         preferred_slot=slot,
-        status="Technician Dispatched"
+        status="Request Received"
     )
     db.session.add(ticket)
     db.session.commit()
 
     send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
-    return redirect(url_for('portal'))
-
+    return redirect(url_for('portal'))    
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -3009,72 +2969,70 @@ ADMIN_PAGE = """
         {% endfor %}
     </table></div>
 
-   <h3 class="tab-head">🛠️ Active Maintenance Requests &amp; Dispatch ({{{{ tickets|length }}}})</h3>
-<div style="margin-top:12px;">
-    {{% for t in tickets %}}
-    <div style="background:#1e293b; padding:16px; border-radius:8px; margin-bottom:14px; border:1px solid #334155; color:#fff;">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:8px; flex-wrap:wrap; gap:8px;">
-            <div>
-                <strong style="color:#38bdf8; font-size:1.05rem;">Ticket #{{{{ t.ticket_code or t.id }}}}</strong>
-                <span style="font-size:0.85rem; color:#94a3b8; margin-left:8px;">👤 {{{{ t.customer.name }}}} (📞 {{{{ t.customer.phone }}}})</span>
+   <h3 class="tab-head">🛠️ Active Maintenance Requests &amp; Dispatch ({{ tickets|length }})</h3>
+    <div style="margin-top:12px;">
+        {% for t in tickets %}
+        <div style="background:#1e293b; padding:16px; border-radius:8px; margin-bottom:14px; border:1px solid #334155; color:#fff;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:8px; flex-wrap:wrap; gap:8px;">
+                <div>
+                    <strong style="color:#38bdf8; font-size:1.05rem;">Ticket #{{ t.ticket_code or t.id }}</strong>
+                    <span style="font-size:0.85rem; color:#94a3b8; margin-left:8px;">👤 {{ t.customer.name }} (📞 {{ t.customer.phone }})</span>
+                </div>
+                <span style="background:#0f172a; padding:4px 10px; border-radius:4px; font-weight:bold; color:#f59e0b; border:1px solid #475569; font-size:0.85rem;">
+                    {{ t.status }}
+                </span>
             </div>
-            <span style="background:#0f172a; padding:4px 10px; border-radius:4px; font-weight:bold; color:#f59e0b; border:1px solid #475569; font-size:0.85rem;">
-                {{{{ t.status }}}}
-            </span>
-        </div>
 
-        <div style="margin:10px 0; font-size:0.9rem; color:#cbd5e1;">
-            <p style="margin:4px 0;"><strong>Issue:</strong> {{{{ t.issue_type }}}} - <em>{{{{ t.description }}}}</em></p>
-            <p style="margin:4px 0;"><strong>Customer Requested Slot:</strong> <span style="color:#fbbf24;">{{{{ t.preferred_slot or 'Not Specified' }}}}</span></p>
-        </div>
+            <div style="margin:10px 0; font-size:0.9rem; color:#cbd5e1;">
+                <p style="margin:4px 0;"><strong>Issue:</strong> {{ t.issue_type }} - <em>{{ t.description }}</em></p>
+                <p style="margin:4px 0;"><strong>Customer Requested Slot:</strong> <span style="color:#fbbf24;">{{ t.preferred_slot or 'Not Specified' }}</span></p>
+            </div>
 
-        <!-- UPDATE CONTROLS (CONFIRM/RESCHEDULE + TECHNICIAN + STATUS + BILL) -->
-        <form action="/admin/update-ticket/{{{{ t.id }}}}" method="POST" style="background:#0f172a; padding:12px; border-radius:6px; margin-top:8px;">
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:10px; align-items:end;">
-                <div>
-                    <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Confirm / Reschedule Slot:</label>
-                    <input type="text" name="confirmed_slot" value="{{{{ t.confirmed_slot or t.preferred_slot or '' }}}}" placeholder="e.g. 10 Sep, 11:30 AM" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+            <form action="/admin/update-ticket/{{ t.id }}" method="POST" style="background:#0f172a; padding:12px; border-radius:6px; margin-top:8px;">
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:10px; align-items:end;">
+                    <div>
+                        <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Confirm / Reschedule Slot:</label>
+                        <input type="text" name="confirmed_slot" value="{{ t.confirmed_slot or t.preferred_slot or '' }}" placeholder="e.g. 10 Sep, 11:30 AM" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Technician Name:</label>
+                        <input type="text" name="technician_name" value="{{ t.technician_name or '' }}" placeholder="e.g. Ramesh Kumar" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Tech Phone (Optional):</label>
+                        <input type="text" name="technician_phone" value="{{ t.technician_phone or '' }}" placeholder="e.g. 9876543210" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Status Pipeline:</label>
+                        <select name="status" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+                            <option value="Request Received" {% if t.status == 'Request Received' %}selected{% endif %}>Request Received</option>
+                            <option value="Timing Confirmed" {% if t.status == 'Timing Confirmed' %}selected{% endif %}>Timing Confirmed</option>
+                            <option value="Technician Dispatched" {% if t.status == 'Technician Dispatched' %}selected{% endif %}>Technician Dispatched</option>
+                            <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Completed" {% if t.status == 'Completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Bill Amount (₹):</label>
+                        <input type="number" step="any" name="total_amount" value="{{ t.total_amount or 0 }}" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+                    </div>
                 </div>
-                <div>
-                    <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Technician Name:</label>
-                    <input type="text" name="technician_name" value="{{{{ t.technician_name or '' }}}}" placeholder="e.g. Ramesh Kumar" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
+                <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="submit" style="background:#2563eb; color:#fff; padding:7px 15px; border:none; border-radius:4px; cursor:pointer; font-weight:600;">Save &amp; Update</button>
+                    
+                    <!-- 1-CLICK WHATSAPP DIGITAL BILL -->
+                    <a href="https://wa.me/91{{ t.customer.phone }}?text=🛡️%20*HAWKEYE%20CCTV%20%26%20AUTOMATION%20-%20SERVICE%20INVOICE*%0A--------------------------------------------%0A*Customer:*%20{{ t.customer.name }}%0A*Ticket%20ID:*%20{{ t.ticket_code or t.id }}%0A*Service:*%20{{ t.issue_type }}%0A*Technician:*%20{{ t.technician_name or 'Hawkeye%20Expert' }}%20({{ t.technician_phone or 'Direct%20Support' }})%0A*Slot:*%20{{ t.confirmed_slot or t.preferred_slot }}%0A*Total%20Bill:*%20₹{{ t.total_amount }}%0A*Status:*%20Completed%20%26%20Verified%0A*Payment%20UPI:*%209971332864%40upi%0A--------------------------------------------%0AOld%20Palam%20Road,%20Kakrola,%20Dwarka%20Sec%2015,%20New%20Delhi%0AThank%20you%20for%20choosing%20Hawkeye%20Security!" 
+                       target="_blank" 
+                       style="background:#16a34a; color:#fff; text-decoration:none; padding:7px 15px; border-radius:4px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                       📲 Send Digital Bill on WhatsApp
+                    </a>
                 </div>
-                <div>
-                    <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Tech Phone (Optional):</label>
-                    <input type="text" name="technician_phone" value="{{{{ t.technician_phone or '' }}}}" placeholder="e.g. 9876543210" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
-                </div>
-                <div>
-                    <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Status Pipeline:</label>
-                    <select name="status" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
-                        <option value="Request Received" {{% if t.status == 'Request Received' %}}selected{{% endif %}}>Request Received</option>
-                        <option value="Timing Confirmed" {{% if t.status == 'Timing Confirmed' %}}selected{{% endif %}}>Timing Confirmed</option>
-                        <option value="Technician Dispatched" {{% if t.status == 'Technician Dispatched' %}}selected{{% endif %}}>Technician Dispatched</option>
-                        <option value="In Progress" {{% if t.status == 'In Progress' %}}selected{{% endif %}}>In Progress</option>
-                        <option value="Completed" {{% if t.status == 'Completed' %}}selected{{% endif %}}>Completed</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:3px;">Bill Amount (₹):</label>
-                    <input type="number" step="any" name="total_amount" value="{{{{ t.total_amount or 0 }}}}" style="width:100%; padding:6px; border-radius:4px; background:#1e293b; border:1px solid #475569; color:#fff; box-sizing:border-box;">
-                </div>
-            </div>
-            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-                <button type="submit" style="background:#2563eb; color:#fff; padding:7px 15px; border:none; border-radius:4px; cursor:pointer; font-weight:600;">Save &amp; Update</button>
-                
-                <!-- 1-CLICK WHATSAPP DIGITAL BILL -->
-                <a href="https://wa.me/91{{{{ t.customer.phone }}}}?text=🛡️%20*HAWKEYE%20CCTV%20%26%20AUTOMATION%20-%20SERVICE%20INVOICE*%0A--------------------------------------------%0A*Customer:*%20{{{{ t.customer.name }}}}%0A*Ticket%20ID:*%20{{{{ t.ticket_code or t.id }}}}%0A*Service:*%20{{{{ t.issue_type }}}}%0A*Technician:*%20{{{{ t.technician_name or 'Hawkeye%20Expert' }}}}%20({{{{ t.technician_phone or 'Direct%20Support' }}}})%0A*Slot:*%20{{{{ t.confirmed_slot or t.preferred_slot }}}}%0A*Total%20Bill:*%20₹{{{{ t.total_amount }}}}%0A*Status:*%20Completed%20%26%20Verified%0A*Payment%20UPI:*%209971332864%40upi%0A--------------------------------------------%0AOld%20Palam%20Road,%20Kakrola,%20Dwarka%20Sec%2015,%20New%20Delhi%0AThank%20you%20for%20choosing%20Hawkeye%20Security!" 
-                   target="_blank" 
-                   style="background:#16a34a; color:#fff; text-decoration:none; padding:7px 15px; border-radius:4px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
-                   📲 Send Digital Bill on WhatsApp
-                </a>
-            </div>
-        </form>
+            </form>
+        </div>
+        {% else %}
+        <div style="color:#94a3b8; padding:12px; background:#1e293b; border-radius:6px;">No maintenance requests found.</div>
+        {% endfor %}
     </div>
-    {{% else %}}
-    <div style="color:#94a3b8; padding:12px; background:#1e293b; border-radius:6px;">No maintenance requests found.</div>
-    {{% endfor %}}
-</div>
-
     <h3 class="tab-head">💼 Career Job Applications ({{ applications|length }})</h3>
     <div class="table-responsive"><table>
         <tr><th>Date</th><th>Applicant Name</th><th>Contact Details</th><th>Position</th><th>Experience</th><th>Resume / CV</th></tr>
