@@ -2907,25 +2907,18 @@ def create_ticket():
 
     send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
     return redirect(url_for('portal'))
-    
-    @app.route('/sitemap.xml', methods=['GET'])
+
+@app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://hawkeye-cctv-auto.onrender.com/</loc>
-    <lastmod>2026-09-07</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://hawkeye-cctv-auto.onrender.com/client-login</loc>
-    <lastmod>2026-09-07</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
+    <url>
+        <loc>https://hawkeye-cctv-auto.onrender.com/</loc>
+        <lastmod>2026-09-09</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+    </url>
 </urlset>"""
-    from flask import Response
     return Response(sitemap_xml, mimetype='application/xml')
 
 # =========================== OWNER ADMIN CONSOLE & EXPORT ===========================
