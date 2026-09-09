@@ -2880,8 +2880,9 @@ def create_ticket():
 
     ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
 
-    try:
+   try:
         ticket = MaintenanceTicket(
+            ticket_id=ticket_code, # <--- Yeh add karna zaroori hai
             ticket_code=ticket_code,
             user_id=user_id,
             issue_type=issue,
@@ -2893,8 +2894,9 @@ def create_ticket():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        # Fallback agar column missing ho toh bina ticket_code ke save ho jaye
+        # Fallback agar column missing ho
         ticket = MaintenanceTicket(
+            ticket_id=ticket_code, # <--- Yahan bhi add karna zaroori hai
             user_id=user_id,
             issue_type=issue,
             description=desc,
