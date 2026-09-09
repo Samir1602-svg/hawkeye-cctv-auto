@@ -1753,17 +1753,32 @@ STYLES = """
 """
 # =========================== PAGE TEMPLATES ===========================
 
-LANDING_PAGE = f"""
-<!DOCTYPE html>
-<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/logo.png">
     <meta name="google-site-verification" content="dxLZN7B5x3D7twKxx9_KLOub88QL3GViL4C6msTCu0M" />
+    
+    <!-- FREE BRANDING & FAVICON FIX -->
+    <link rel="icon" type="image/png" sizes="192x192" href="https://hawkeye-cctv-auto.onrender.com/logo.png">
+    <link rel="shortcut icon" href="https://hawkeye-cctv-auto.onrender.com/logo.png">
+    <link rel="apple-touch-icon" href="https://hawkeye-cctv-auto.onrender.com/logo.png">
+
     <title>Hawkeye CCTV &amp; Automation | Complete Security Solutions Delhi NCR</title>
     <meta name="description" content="Hawkeye CCTV and Automation - Leading CCTV installation, 5MP IP cameras, biometric access control, and repair AMC services across Delhi NCR.">
     <meta name="keywords" content="Hawkeye CCTV, CCTV installation Delhi, CCTV repair Dwarka, Hawkeye Automation">
+
+    <!-- GOOGLE SEARCH "SITENAME" OVERRIDE (RENDER HATA KAR BRAND NAME DIKHAYEGA) -->
+    <script type="application/ld+json">
+    {{
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Hawkeye CCTV & Automation",
+      "alternateName": ["Hawkeye CCTV", "Hawkeye Security"],
+      "url": "https://hawkeye-cctv-auto.onrender.com/"
+    }}
+    </script>
+
+    <!-- LOCAL BUSINESS SCHEMA -->
     <script type="application/ld+json">
     {{
       "@context": "https://schema.org",
