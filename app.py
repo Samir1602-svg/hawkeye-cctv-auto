@@ -2880,9 +2880,9 @@ def create_ticket():
 
     ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
 
-   try:
+    try:
         ticket = MaintenanceTicket(
-            ticket_id=ticket_code, # <--- Yeh add karna zaroori hai
+            ticket_id=ticket_code,
             ticket_code=ticket_code,
             user_id=user_id,
             issue_type=issue,
@@ -2894,9 +2894,8 @@ def create_ticket():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        # Fallback agar column missing ho
         ticket = MaintenanceTicket(
-            ticket_id=ticket_code, # <--- Yahan bhi add karna zaroori hai
+            ticket_id=ticket_code,
             user_id=user_id,
             issue_type=issue,
             description=desc,
@@ -2907,8 +2906,9 @@ def create_ticket():
         db.session.commit()
 
     send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
-    return redirect(url_for('portal'))  
-@app.route('/sitemap.xml', methods=['GET'])
+    return redirect(url_for('portal'))
+    
+    @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
