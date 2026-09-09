@@ -1508,7 +1508,8 @@ with app.app_context():
             conn.commit()
     except Exception as e:
         print("Schema sync notice:", e)
-        admin_user = AdminUser.query.filter_by(username="admin").first()
+        
+    admin_user = AdminUser.query.filter_by(username="admin").first()
     saved_hash = get_persisted_admin_hash()
     
     if not admin_user:
