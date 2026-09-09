@@ -1496,7 +1496,6 @@ def save_persisted_admin_hash(pwd_hash):
 
 with app.app_context():
     db.create_all()
-    # Auto-Migration for new ticket columns
     try:
         from sqlalchemy import text
         with db.engine.connect() as conn:
@@ -1508,7 +1507,7 @@ with app.app_context():
             conn.commit()
     except Exception as e:
         print("Schema sync notice:", e)
-        
+
     admin_user = AdminUser.query.filter_by(username="admin").first()
     saved_hash = get_persisted_admin_hash()
     
@@ -1520,7 +1519,6 @@ with app.app_context():
     elif saved_hash and admin_user.password_hash != saved_hash:
         admin_user.password_hash = saved_hash
         db.session.commit()
-
 def calculate_quote(cameras, brand="Hawkeye", storage=15):
     if cameras == 4:
         return 18499
@@ -2878,12 +2876,11 @@ def create_ticket():
     desc = request.form.get('description')
     slot = request.form.get('preferred_slot')
 
-    ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
+    generated_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
 
     try:
         ticket = MaintenanceTicket(
-            ticket_id=ticket_code,
-            ticket_code=ticket_code,
+            ticket_code=generated_code,
             user_id=user_id,
             issue_type=issue,
             description=desc,
@@ -2894,20 +2891,30 @@ def create_ticket():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        ticket = MaintenanceTicket(
-            ticket_id=ticket_code,
-            user_id=user_id,
-            issue_type=issue,
-            description=desc,
-            preferred_slot=slot,
-            status="Request Received"
-        )
-        db.session.add(ticket)
-        db.session.commit()
+        # Direct raw SQL execution fallback
+        from sqlalchemy import text
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(
+                    text("INSERT INTO maintenance_ticket (ticket_code, user_id, issue_type, description, preferred_slot, status, total_amount, created_at) "
+                         "VALUES (:code, :uid, :issue, :desc, :slot, :status, 0.0, :created)"),
+                    {
+                        "code": generated_code,
+                        "uid": user_id,
+                        "issue": issue,
+                        "desc": desc,
+                        "slot": slot,
+                        "status": "Request Received",
+                        "created": datetime.utcnow()
+                    }
+                )
+                conn.commit()
+        except Exception as inner_e:
+            print("Fallback ticket creation error:", inner_e)
 
     send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
     return redirect(url_for('portal'))
-
+    
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
