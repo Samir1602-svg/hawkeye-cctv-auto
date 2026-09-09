@@ -94,21 +94,16 @@ class Quotation(db.Model):
 
 class MaintenanceTicket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    ticket_code = db.Column(db.String(50), unique=True)
+    ticket_id = db.Column(db.String(50))
+    ticket_code = db.Column(db.String(50))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     issue_type = db.Column(db.String(100))
     description = db.Column(db.Text)
-    preferred_slot = db.Column(db.String(100))     # Jo customer ne book karte waqt manga
-    confirmed_slot = db.Column(db.String(100))     # Jo Hawkeye owner ne reschedule/confirm kiya
-    technician_name = db.Column(db.String(100))    # Assigned Technician ka naam
-    technician_phone = db.Column(db.String(20))   # Technician ka phone number (optional)
+    preferred_slot = db.Column(db.String(100))
+    confirmed_slot = db.Column(db.String(100))
+    technician_name = db.Column(db.String(100))
+    technician_phone = db.Column(db.String(20))
     status = db.Column(db.String(50), default="Request Received")
-    # Status Pipeline:
-    # 1. Request Received
-    # 2. Timing Confirmed
-    # 3. Technician Dispatched
-    # 4. In Progress
-    # 5. Completed
     total_amount = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1499,6 +1494,7 @@ with app.app_context():
     try:
         from sqlalchemy import text
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(50);"))
             conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS ticket_code VARCHAR(50);"))
             conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS confirmed_slot VARCHAR(100);"))
             conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS technician_name VARCHAR(100);"))
@@ -2876,41 +2872,19 @@ def create_ticket():
     desc = request.form.get('description')
     slot = request.form.get('preferred_slot')
 
-    generated_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
+    code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
 
-    try:
-        ticket = MaintenanceTicket(
-            ticket_code=generated_code,
-            user_id=user_id,
-            issue_type=issue,
-            description=desc,
-            preferred_slot=slot,
-            status="Request Received"
-        )
-        db.session.add(ticket)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        # Direct raw SQL execution fallback
-        from sqlalchemy import text
-        try:
-            with db.engine.connect() as conn:
-                conn.execute(
-                    text("INSERT INTO maintenance_ticket (ticket_code, user_id, issue_type, description, preferred_slot, status, total_amount, created_at) "
-                         "VALUES (:code, :uid, :issue, :desc, :slot, :status, 0.0, :created)"),
-                    {
-                        "code": generated_code,
-                        "uid": user_id,
-                        "issue": issue,
-                        "desc": desc,
-                        "slot": slot,
-                        "status": "Request Received",
-                        "created": datetime.utcnow()
-                    }
-                )
-                conn.commit()
-        except Exception as inner_e:
-            print("Fallback ticket creation error:", inner_e)
+    ticket = MaintenanceTicket(
+        ticket_id=code,
+        ticket_code=code,
+        user_id=user_id,
+        issue_type=issue,
+        description=desc,
+        preferred_slot=slot,
+        status="Request Received"
+    )
+    db.session.add(ticket)
+    db.session.commit()
 
     send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
     return redirect(url_for('portal'))
