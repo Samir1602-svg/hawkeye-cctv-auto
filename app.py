@@ -2880,19 +2880,32 @@ def create_ticket():
 
     ticket_code = f"DL-{datetime.now().strftime('%m%d')}-{user_id}"
 
-    ticket = MaintenanceTicket(
-        ticket_code=ticket_code,
-        user_id=user_id,
-        issue_type=issue,
-        description=desc,
-        preferred_slot=slot,
-        status="Request Received"
-    )
-    db.session.add(ticket)
-    db.session.commit()
+    try:
+        ticket = MaintenanceTicket(
+            ticket_code=ticket_code,
+            user_id=user_id,
+            issue_type=issue,
+            description=desc,
+            preferred_slot=slot,
+            status="Request Received"
+        )
+        db.session.add(ticket)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        # Fallback agar column missing ho toh bina ticket_code ke save ho jaye
+        ticket = MaintenanceTicket(
+            user_id=user_id,
+            issue_type=issue,
+            description=desc,
+            preferred_slot=slot,
+            status="Request Received"
+        )
+        db.session.add(ticket)
+        db.session.commit()
 
     send_whatsapp_alert(user.name, user.phone, user.area, f"SERVICE TICKET: {issue} ({slot})", 0)
-    return redirect(url_for('portal'))    
+    return redirect(url_for('portal'))  
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     sitemap_xml = """<?xml version="1.0" encoding="UTF-8"?>
