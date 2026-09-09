@@ -1496,6 +1496,17 @@ def save_persisted_admin_hash(pwd_hash):
 
 with app.app_context():
     db.create_all()
+    # Auto-Migration for new ticket columns
+    try:
+        from sqlalchemy import text
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS confirmed_slot VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS technician_name VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS technician_phone VARCHAR(20);"))
+            conn.execute(text("ALTER TABLE maintenance_ticket ADD COLUMN IF NOT EXISTS total_amount FLOAT DEFAULT 0.0;"))
+            conn.commit()
+    except Exception as e:
+        print("Schema sync notice:", e)
     admin_user = AdminUser.query.filter_by(username="admin").first()
     saved_hash = get_persisted_admin_hash()
     
