@@ -4,3 +4,6 @@ werkzeug
 requests
 gunicorn
 psycopg2-binary
+psycopg2-binary
+psycopg[binary]
+
